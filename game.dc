@@ -1,0 +1,13 @@
+dclass Block {
+   uint32 color required broadcast;
+   uint32 x required broadcast;
+   uint32 y required broadcast;
+   uint32 z required broadcast;
+}
+
+dclass LoginManager {
+   login(string username, string password) clsend;
+   loginResponse(string status);
+}
+
+dclass Empty {}
