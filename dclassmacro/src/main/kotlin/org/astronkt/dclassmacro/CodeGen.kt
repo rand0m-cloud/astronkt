@@ -3,36 +3,37 @@ package org.astronkt.dclassmacro
 import org.astronkt.DistributedFieldModifiers
 import org.astronkt.FieldValue
 
-fun generateDClassHelper(dClassFile: DClassFile): String = buildString {
-    val index = dClassFile.buildIndex()
-    for (dClassName in index.dClasses) {
-        val (dClassId, dClass) = index.byDClassName[dClassName]!!
-        val id = dClassId.id
-        append("@Suppress(\"unused\")\n")
-        append("open class $dClassName (doId: DOId): DistributedObject(doId, ${id}U.toDClassId()) {\n")
+fun generateDClassHelper(dClassFile: DClassFile): String =
+    buildString {
+        val index = dClassFile.buildIndex()
+        for (dClassName in index.dClasses) {
+            val (dClassId, dClass) = index.byDClassName[dClassName]!!
+            val id = dClassId.id
+            append("@Suppress(\"unused\")\n")
+            append("open class $dClassName (doId: DOId): DistributedObject(doId, ${id}U.toDClassId()) {\n")
 
-        generatePreamble(index, dClassName, id, dClass)
-        generateFieldSpecs(dClass)
-        generateFields(index, dClassName, dClass)
-        generateEventSetters(dClass)
+            generatePreamble(index, dClassName, id, dClass)
+            generateFieldSpecs(dClass)
+            generateFields(index, dClassName, dClass)
+            generateEventSetters(dClass)
 
-        append("}\n\n")
+            append("}\n\n")
+        }
+
+        generateClassSpec(index, dClassFile)
     }
-
-    generateClassSpec(index, dClassFile)
-}
 
 fun StringBuilder.generatePreamble(
     index: DClassFileIndex,
     dClassName: String,
     id: UShort,
-    dClass: DClassFile.TypeDecl.DClass
+    dClass: DClassFile.TypeDecl.DClass,
 ) {
     append("\tcompanion object {\n")
     append("\t\tval dClassId = ${id}U.toDClassId()\n\n")
     append("\t\tobject Fields {\n")
     for (field in dClass.fields) {
-        //append("\t\t\tval ${field.name}: FieldId = ${index.getFieldId(dClassName, field.name).id}U.toFieldId()\n")
+        // append("\t\t\tval ${field.name}: FieldId = ${index.getFieldId(dClassName, field.name).id}U.toFieldId()\n")
     }
     append("\t\t}\n")
     append("\t}\n")
@@ -69,21 +70,20 @@ fun StringBuilder.generateFieldSpecs(dClass: DClassFile.TypeDecl.DClass) {
                     .toOnSetCode(
                         "on${if (isField) "Set" else ""}${"TODO"}",
                         "it",
-                        "\t\t\t\t"
+                        "\t\t\t\t",
                     )
-            }\n"
+            }\n",
         )
         append("\t\t\t}\n")
         append("\t\t),\n")
     }
     append("\t)\n\n")
-
 }
 
 fun StringBuilder.generateFields(
     index: DClassFileIndex,
     dClassName: String,
-    dClass: DClassFile.TypeDecl.DClass
+    dClass: DClassFile.TypeDecl.DClass,
 ) {
 //    for (field in dClass.fields) {
 //        val type = field.toFieldValueType()
@@ -154,7 +154,10 @@ private fun StringBuilder.generateEventSetters(dClass: DClassFile.TypeDecl.DClas
 //    }
 }
 
-private fun StringBuilder.generateClassSpec(index: DClassFileIndex, file: DClassFile) {
+private fun StringBuilder.generateClassSpec(
+    index: DClassFileIndex,
+    file: DClassFile,
+) {
     append("val classSpecRepository = ClassSpecRepository.build {\n")
     index.dClasses.forEach {
         val dClass = index.byDClassName[it]!!.second
@@ -190,50 +193,69 @@ private fun StringBuilder.generateClassSpec(index: DClassFileIndex, file: DClass
     append("}\n")
 }
 
-private fun FieldValue.Type.toTypeCode(): String = when (this) {
-    is FieldValue.Type.UInt32 -> "FieldValue.Type.UInt32"
-    is FieldValue.Type.String -> "FieldValue.Type.String"
-    is FieldValue.Type.Tuple -> {
-        StringBuilder().apply {
-            append("FieldValue.Type.Tuple(")
-            for (type in types) {
-                append("${type.toTypeCode()}, ")
-            }
-            append(")")
-        }.toString()
+private fun FieldValue.Type.toTypeCode(): String =
+    when (this) {
+        FieldValue.Type.Int8 -> "FieldValue.Type.Int8"
+        FieldValue.Type.Int16 -> "FieldValue.Type.Int16"
+        FieldValue.Type.Int32 -> "FieldValue.Type.Int32"
+        FieldValue.Type.Int64 -> "FieldValue.Type.Int64"
+        FieldValue.Type.UInt8 -> "FieldValue.Type.UInt8"
+        FieldValue.Type.UInt16 -> "FieldValue.Type.UInt16"
+        FieldValue.Type.UInt32 -> "FieldValue.Type.UInt32"
+        FieldValue.Type.UInt64 -> "FieldValue.Type.UInt64"
+
+        FieldValue.Type.Blob -> "FieldValue.Type.Blob"
+        FieldValue.Type.Char -> "FieldValue.Type.Char"
+        FieldValue.Type.Float64 -> "FieldValue.Type.Float64"
+        FieldValue.Type.String -> "FieldValue.Type.String"
+
+        is FieldValue.Type.Tuple -> {
+            StringBuilder().apply {
+                append("FieldValue.Type.Tuple(")
+                for (type in types) {
+                    append("${type.toTypeCode()}, ")
+                }
+                append(")")
+            }.toString()
+        }
+
+        is FieldValue.Type.Array -> "FieldValue.Type.Array(${type.toTypeCode()}"
     }
 
-    else -> error("todo $this")
-}
+private fun FieldValue.Type.toKotlinType(): String =
+    when (this) {
+        is FieldValue.Type.UInt32 -> "UInt"
+        is FieldValue.Type.String -> "String"
+        is FieldValue.Type.Tuple -> error("tuples are not a simple primitive")
+        else -> "TODOKotlinType"
+    }
 
-private fun FieldValue.Type.toKotlinType(): String = when (this) {
-    is FieldValue.Type.UInt32 -> "UInt"
-    is FieldValue.Type.String -> "String"
-    is FieldValue.Type.Tuple -> error("tuples are not a simple primitive")
-    else -> error("todo $this")
-}
+private fun FieldValue.Type.toDestructureCodePrimitive(): String =
+    when (this) {
+        is FieldValue.Type.UInt32 -> "toUInt32()!!"
+        is FieldValue.Type.String -> "toStringValue()!!"
+        is FieldValue.Type.Tuple -> error("tuples are not a simple primitive")
+        else -> "TODODestructureCodePrimitive"
+    }
 
-private fun FieldValue.Type.toDestructureCodePrimitive(): String = when (this) {
-    is FieldValue.Type.UInt32 -> "toUInt32()!!"
-    is FieldValue.Type.String -> "toStringValue()!!"
-    is FieldValue.Type.Tuple -> error("tuples are not a simple primitive")
-    else -> error("todo $this")
-}
-
-private fun FieldValue.Type.toOnSetCode(method: String, variable: String, linePrepend: String): String =
+private fun FieldValue.Type.toOnSetCode(
+    method: String,
+    variable: String,
+    linePrepend: String,
+): String =
     when (this) {
         is FieldValue.Type.Tuple -> {
             buildString {
                 append("${linePrepend}it.toTuple()!!.let { values ->\n")
                 for ((index, type) in types.withIndex()) {
-                    append("${linePrepend}\tval t${index} = values[$index].${type.toDestructureCodePrimitive()}\n")
+                    append("${linePrepend}\tval t$index = values[$index].${type.toDestructureCodePrimitive()}\n")
                 }
                 append("${linePrepend}\t$method(")
                 for (i in types.indices) {
                     append("t$i, ")
                 }
                 append("sender)\n")
-                append("${linePrepend}}")
+                append("$linePrepend}")
             }
         }
 

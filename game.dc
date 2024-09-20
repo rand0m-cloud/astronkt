@@ -46,7 +46,7 @@ dclass Account {
   uint32[] pirateAvatars required db;
   uint32[] HOUSE_ID_SET db;
   uint32 ESTATE_ID db;
-  AvatarPendingDel ACCOUNT_AV_SET_DEL[] db;
+  AvatarPendingDel[] ACCOUNT_AV_SET_DEL db;
   string PLAYED_MINUTES db;
   string PLAYED_MINUTES_PERIOD db;
   string CREATED db;
@@ -56,7 +56,7 @@ dclass Account {
 dclass AstronAccount {
   uint32[] ACCOUNT_AV_SET required db;
   uint32 ESTATE_ID db;
-  AvatarPendingDel ACCOUNT_AV_SET_DEL[] db;
+  AvatarPendingDel[] ACCOUNT_AV_SET_DEL db;
   string CREATED db;
   string LAST_LOGIN db;
   string ACCOUNT_ID db;
@@ -66,7 +66,7 @@ dclass AstronAccount {
 struct BarrierData {
   uint16 context;
   string name;
-  uint32 avIds[];
+  uint32[] avIds;
 };
 
 dclass DistributedObject {
@@ -77,7 +77,7 @@ dclass DistributedObject {
 };
 
 dclass DistributedTestObject : DistributedObject {
-  uint32 AutoInterest[];
+  uint32[] AutoInterest;
   setParentingRules(string, string) broadcast ram;
   setRequiredField(uint32) required broadcast ram;
   setB(uint32) broadcast;
@@ -905,8 +905,8 @@ struct party {
   uint8 endMinute;
   uint8 isPrivate;
   uint8 inviteTheme;
-  activity activities[];
-  decoration decors[];
+  activity[] activities;
+  decoration[] decors;
   uint8 status;
 };
 
@@ -917,7 +917,7 @@ struct partyReply {
 
 struct repliesForOneParty {
   uint64 partyId;
-  partyReply partyReplies[];
+  partyReply[] partyReplies;
 };
 
 struct publicPartyInfo {
@@ -1694,8 +1694,8 @@ dclass EstateManager : DistributedObject {
 
 struct decorItem {
   uint8 decorType;
-  uint8 dataByte[];
-  uint32 dataWord[];
+  uint8[] dataByte;
+  uint32[] dataWord;
 };
 
 struct lawnItem {
@@ -1983,7 +1983,7 @@ struct startAndEndTime {
 
 struct multipleStartHoliday {
   uint8 holidayId;
-  startAndEndTime times[];
+  startAndEndTime[] times;
 };
 
 dclass NewsManager : DistributedObject {
@@ -3601,10 +3601,10 @@ struct twoDTreasureInfo {
 
 struct twoDSectionInfo {
   uint8 sectionIndex;
-  uint8 enemyIndicesSelected[];
-  twoDTreasureInfo treasureIndicesSelected[];
-  uint8 spawnPointIndicesSelected[];
-  uint8 stomperIndicesSelected[];
+  uint8[] enemyIndicesSelected;
+  twoDTreasureInfo[] treasureIndicesSelected;
+  uint8[] spawnPointIndicesSelected;
+  uint8[] stomperIndicesSelected;
 };
 
 dclass DistributedTwoDGame : DistributedMinigame {

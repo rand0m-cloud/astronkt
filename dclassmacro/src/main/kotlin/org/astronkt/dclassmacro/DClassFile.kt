@@ -1,101 +1,116 @@
+@file:Suppress("ktlint:standard:no-wildcard-imports")
+
 package org.astronkt.dclassmacro
 
 import org.astronkt.*
 
+@Suppress("unused")
 data class DClassFile(val decls: List<TypeDecl>) {
     sealed class TypeDecl {
         data class DClass(val name: String, val parents: List<String>, val fields: List<DClassField>) : TypeDecl()
-        data class TypeDef(val type: DClassType, val newTypeName: String) : TypeDecl()
+
+        data class TypeDef(val type: DClassFieldType, val newTypeName: String) : TypeDecl()
+
         data class Struct(val name: String, val parameters: List<DClassParameter>) : TypeDecl()
     }
 
     sealed class DClassField {
         data class ParameterField(
             val parameter: DClassParameter,
-            val modifiers: List<DClassFieldModifier>
+            val modifiers: List<DClassFieldModifier>,
         ) : DClassField()
 
         data class AtomicField(
             val name: String,
             val parameters: List<DClassParameter>,
-            val modifiers: List<DClassFieldModifier>
+            val modifiers: List<DClassFieldModifier>,
         ) : DClassField()
 
         data class MolecularField(
             val name: String,
-            val fields: List<String>
+            val fields: List<String>,
         ) : DClassField()
     }
 
     sealed class DClassFieldModifier {
         data object Required : DClassFieldModifier()
+
         data object Broadcast : DClassFieldModifier()
+
         data object ClSend : DClassFieldModifier()
+
         data object ClRecv : DClassFieldModifier()
+
         data object Ram : DClassFieldModifier()
+
         data object Db : DClassFieldModifier()
+
         data object AiRecv : DClassFieldModifier()
+
         data object OwnSend : DClassFieldModifier()
+
         data object OwnRecv : DClassFieldModifier()
     }
 
     sealed class DClassParameter {
+        abstract val type: DClassFieldType
+
         data class IntParameter(
-            val type: DClassFieldType.IntType,
-            val range: IntRange?,
-            val transform: IntTransform?,
+            override val type: DClassFieldType.Int,
             val name: String?,
-            val default: IntConstant?
+            val default: IntConstant?,
         ) : DClassParameter() {
             data class IntRange(val from: Literal.IntLiteral, val to: Literal.IntLiteral)
+
             data class IntTransform(val operator: Operator, val literal: Literal.IntLiteral, val next: IntTransform?)
+
             data class IntConstant(val literal: Literal.IntLiteral, val transform: IntTransform?)
         }
 
         data class FloatParameter(
-            val type: DClassFieldType.FloatType,
-            val range: FloatRange?,
-            val transform: FloatTransform?,
+            override val type: DClassFieldType.Float,
             val name: String?,
-            val default: FloatConstant?
+            val default: FloatConstant?,
         ) : DClassParameter() {
             data class FloatRange(val from: Literal.FloatLiteral, val to: Literal.FloatLiteral)
+
             data class FloatTransform(
                 val operator: Operator,
                 val literal: Literal.NumLiteral,
-                val next: FloatTransform?
+                val next: FloatTransform?,
             )
 
             data class FloatConstant(val literal: Literal.NumLiteral, val transform: FloatTransform?)
         }
 
         data class CharParameter(
-            val type: DClassFieldType.Char,
+            override val type: DClassFieldType.Char,
             val name: String?,
-            val default: Literal.CharLiteral?
+            val default: Literal.CharLiteral?,
         ) : DClassParameter()
 
         data class SizedParameter(
-            val type: DClassFieldType.SizedType,
-            val constraint: SizeConstraint?,
+            override val type: DClassFieldType.Sized,
             val name: String?,
-            val default: Literal.SizedLiteral?
-        ) : DClassParameter() {
-            data class SizeConstraint(val minSize: Literal.IntLiteral, val maxSize: Literal.IntLiteral?)
-        }
+            val default: Literal.SizedLiteral?,
+        ) : DClassParameter()
 
-        data class StructParameter(val struct: String, val name: String?, val default: Literal.IntLiteral?) :
-            DClassParameter()
+        data class UserTypeParameter(
+            override val type: DClassFieldType.User,
+            val name: String?,
+            val default: Literal.IntLiteral?,
+        ) : DClassParameter()
 
         data class ArrayParameter(
-            val type: DClassType,
+            override val type: DClassFieldType.Array,
             val name: String?,
-            val range: ArrayRange,
-            val default: Literal.ArrayLiteral?
+            val default: Literal.ArrayLiteral?,
         ) : DClassParameter() {
             sealed class ArrayRange {
                 data object Empty : ArrayRange()
+
                 data class Size(val size: Literal.IntLiteral) : ArrayRange()
+
                 data class Range(val from: Literal.IntLiteral, val to: Literal.IntLiteral) : ArrayRange()
             }
         }
@@ -103,16 +118,22 @@ data class DClassFile(val decls: List<TypeDecl>) {
 
     sealed class Operator {
         data object Modulo : Operator()
+
         data object Plus : Operator()
+
         data object Minus : Operator()
+
         data object Multiply : Operator()
+
         data object Divide : Operator()
     }
 
     sealed class Literal {
-        sealed interface NumLiteral {}
-        sealed interface ArrayValueLiteral {}
-        sealed interface SizedLiteral {}
+        sealed interface NumLiteral
+
+        sealed interface ArrayValueLiteral
+
+        sealed interface SizedLiteral
 
         sealed class IntLiteral : Literal(), NumLiteral, ArrayValueLiteral {
             abstract val value: Long
@@ -120,14 +141,18 @@ data class DClassFile(val decls: List<TypeDecl>) {
             override fun toString(): String = value.toString()
 
             data class DecLiteral(override val value: Long) : IntLiteral()
-            data class OctLiteral(override val value: Long) : IntLiteral()
-            data class BinLiteral(override val value: Long) : IntLiteral()
-            data class HexLiteral(override val value: Long) : IntLiteral()
 
+            data class OctLiteral(override val value: Long) : IntLiteral()
+
+            data class BinLiteral(override val value: Long) : IntLiteral()
+
+            data class HexLiteral(override val value: Long) : IntLiteral()
         }
 
         data class CharLiteral(val value: Byte) : Literal()
+
         data class StringLiteral(val value: String) : Literal(), SizedLiteral
+
         data class FloatLiteral(val value: Double) : Literal(), NumLiteral {
             override fun toString(): String = value.toString()
         }
@@ -136,61 +161,71 @@ data class DClassFile(val decls: List<TypeDecl>) {
             data class ArrayShorthandLiteral(val value: ArrayValueLiteral, val repeated: IntLiteral) :
                 ArrayValueLiteral
         }
-
-
     }
 
-    sealed class DClassFieldType {
-        sealed class IntType : DClassFieldType() {}
-        sealed class FloatType : DClassFieldType() {}
-        sealed class SizedType : DClassFieldType() {}
+    sealed class DClassRawFieldType {
+        sealed class IntType : DClassRawFieldType()
+
+        sealed class FloatType : DClassRawFieldType()
+
+        sealed class SizedType : DClassRawFieldType()
 
         data object UInt64 : IntType()
+
         data object Int64 : IntType()
 
         data object UInt32 : IntType()
+
         data object Int32 : IntType()
 
         data object UInt16 : IntType()
+
         data object Int16 : IntType()
 
         data object UInt8 : IntType()
+
         data object Int8 : IntType()
 
         data object String : SizedType()
+
         data object Blob : SizedType()
 
-        data object Char : DClassFieldType()
+        data object Char : DClassRawFieldType()
+
         data object Float64 : FloatType()
 
-        data class UserDefined(val name: kotlin.String) : DClassFieldType()
-
-        data class Array(val type: DClassFieldType) : DClassFieldType()
+        data class UserType(val name: kotlin.String) : DClassRawFieldType()
     }
 
-    // TODO: refactor this name and possibly merge into DClassFieldType
-    sealed class DClassType {
+    sealed class DClassFieldType {
         data class Int(
-            val type: DClassFieldType.IntType,
+            val type: DClassRawFieldType.IntType,
             val range: DClassParameter.IntParameter.IntRange?,
             val transform: DClassParameter.IntParameter.IntTransform?,
-        ) : DClassType()
+        ) : DClassFieldType()
 
         data class Float(
-            val type: DClassFieldType.FloatType,
+            val type: DClassRawFieldType.FloatType,
             val range: DClassParameter.FloatParameter.FloatRange?,
             val transform: DClassParameter.FloatParameter.FloatTransform?,
-        ) : DClassType()
+        ) : DClassFieldType()
 
-        data class Array(val type: DClassType, val range: DClassParameter.ArrayParameter.ArrayRange) : DClassType()
-        data class Other(val type: DClassFieldType) : DClassType()
+        data object Char : DClassFieldType()
+
+        data class Array(val type: DClassFieldType, val range: DClassParameter.ArrayParameter.ArrayRange) : DClassFieldType()
+
+        data class Sized(val type: DClassRawFieldType.SizedType, val sizeConstraint: SizeConstraint?) : DClassFieldType() {
+            data class SizeConstraint(val minSize: Literal.IntLiteral, val maxSize: Literal.IntLiteral?)
+        }
+
+        data class User(val type: DClassRawFieldType) : DClassFieldType()
     }
 }
 
 data class DClassFileIndex(
     val dClasses: List<String>,
     val byDClassName: Map<String, Pair<DClassId, DClassFile.TypeDecl.DClass>>,
-    val byDClassField: Map<DClassFile.DClassField, FieldId>
+    val byDClassField: Map<DClassFile.DClassField, FieldId>,
 ) {
     fun getFieldId(field: DClassFile.DClassField): FieldId = byDClassField[field]!!
 }
@@ -224,68 +259,53 @@ fun DClassFile.buildIndex(): DClassFileIndex {
     return DClassFileIndex(dClasses, byDClassName, byDClassField)
 }
 
-fun DClassFile.DClassParameter.toFieldValueType(): FieldValue.Type {
-    return when (this) {
-        is DClassFile.DClassParameter.IntParameter -> {
-            type.toFieldValueType()
-        }
-
-        is DClassFile.DClassParameter.SizedParameter -> {
-            type.toFieldValueType()
-        }
-
-        is DClassFile.DClassParameter.ArrayParameter -> TODO()
-        is DClassFile.DClassParameter.CharParameter -> {
-            DClassFile.DClassFieldType.Char.toFieldValueType()
-        }
-
-        is DClassFile.DClassParameter.FloatParameter -> {
-            type.toFieldValueType()
-        }
-
-        is DClassFile.DClassParameter.StructParameter -> {
-            TODO()
-        }
-    }
-}
-
 fun DClassFile.DClassField.toFieldValueType(): FieldValue.Type {
     return when (this) {
         is DClassFile.DClassField.ParameterField -> {
-            parameter.toFieldValueType()
+            parameter.type.toFieldValueType()
         }
 
         is DClassFile.DClassField.AtomicField -> {
-            val types = parameters.map { it.toFieldValueType() }
+            val types = parameters.map { it.type.toFieldValueType() }
             if (types.size == 1) types[0] else FieldValue.Type.Tuple(*types.toTypedArray())
         }
 
         is DClassFile.DClassField.MolecularField -> {
-            FieldValue.Type.Tuple(*fields.map { toFieldValueType() }.toTypedArray())
+            FieldValue.Type.Blob
         }
+    }
+}
+
+fun DClassFile.DClassRawFieldType.toFieldValueType(): FieldValue.Type {
+    return when (this) {
+        DClassFile.DClassRawFieldType.UInt64 -> FieldValue.Type.UInt64
+        DClassFile.DClassRawFieldType.Int64 -> FieldValue.Type.Int64
+
+        DClassFile.DClassRawFieldType.UInt32 -> FieldValue.Type.UInt32
+        DClassFile.DClassRawFieldType.Int32 -> FieldValue.Type.Int32
+
+        DClassFile.DClassRawFieldType.UInt16 -> FieldValue.Type.UInt16
+        DClassFile.DClassRawFieldType.Int16 -> FieldValue.Type.Int16
+
+        DClassFile.DClassRawFieldType.UInt8 -> FieldValue.Type.UInt8
+        DClassFile.DClassRawFieldType.Int8 -> FieldValue.Type.Int8
+
+        DClassFile.DClassRawFieldType.String -> FieldValue.Type.String
+        DClassFile.DClassRawFieldType.Blob -> FieldValue.Type.String
+        DClassFile.DClassRawFieldType.Char -> FieldValue.Type.Char
+        DClassFile.DClassRawFieldType.Float64 -> FieldValue.Type.Float64
+        is DClassFile.DClassRawFieldType.UserType -> FieldValue.Type.Blob
     }
 }
 
 fun DClassFile.DClassFieldType.toFieldValueType(): FieldValue.Type {
     return when (this) {
-        is DClassFile.DClassFieldType.UInt64 -> FieldValue.Type.UInt64
-        is DClassFile.DClassFieldType.Int64 -> FieldValue.Type.Int64
-
-        is DClassFile.DClassFieldType.UInt32 -> FieldValue.Type.UInt32
-        is DClassFile.DClassFieldType.Int32 -> FieldValue.Type.Int32
-
-        is DClassFile.DClassFieldType.UInt16 -> FieldValue.Type.UInt16
-        is DClassFile.DClassFieldType.Int16 -> FieldValue.Type.Int16
-
-        is DClassFile.DClassFieldType.UInt8 -> FieldValue.Type.UInt8
-        is DClassFile.DClassFieldType.Int8 -> FieldValue.Type.Int8
-
-        is DClassFile.DClassFieldType.String -> FieldValue.Type.String
-        is DClassFile.DClassFieldType.Blob -> FieldValue.Type.String
-        is DClassFile.DClassFieldType.Char -> FieldValue.Type.Char
-        is DClassFile.DClassFieldType.Float64 -> FieldValue.Type.Float64
         is DClassFile.DClassFieldType.Array -> FieldValue.Type.Array(type.toFieldValueType())
-        is DClassFile.DClassFieldType.UserDefined -> TODO()
+        DClassFile.DClassFieldType.Char -> FieldValue.Type.Char
+        is DClassFile.DClassFieldType.Float -> FieldValue.Type.Float64
+        is DClassFile.DClassFieldType.Int -> type.toFieldValueType()
+        is DClassFile.DClassFieldType.Sized -> type.toFieldValueType()
+        is DClassFile.DClassFieldType.User -> FieldValue.Type.Blob
     }
 }
 
@@ -313,33 +333,33 @@ fun DClassFile.DClassField.toDistributedFieldSpec(): DistributedFieldSpec {
                 is DClassFile.DClassFieldModifier.OwnSend -> acc.copy(ownsend = true)
                 is DClassFile.DClassFieldModifier.OwnRecv -> acc.copy(ownrecv = true)
             }
-        }
+        },
     )
 }
 
-fun DClassFile.DClassFieldType.toType(): String = when (this) {
-    is DClassFile.DClassFieldType.UInt8 -> "uint8"
-    is DClassFile.DClassFieldType.Int8 -> "int8"
-    is DClassFile.DClassFieldType.UInt16 -> "uint16"
-    is DClassFile.DClassFieldType.Int16 -> "int16"
-    is DClassFile.DClassFieldType.UInt32 -> "uint32"
-    is DClassFile.DClassFieldType.Int32 -> "int32"
-    is DClassFile.DClassFieldType.UInt64 -> "uint64"
-    is DClassFile.DClassFieldType.Int64 -> "int64"
-    is DClassFile.DClassFieldType.Blob -> "blob"
-    is DClassFile.DClassFieldType.String -> "string"
-    is DClassFile.DClassFieldType.Array -> "${type.toType()}[]"
-    is DClassFile.DClassFieldType.Char -> "char"
-    is DClassFile.DClassFieldType.Float64 -> "float64"
-    is DClassFile.DClassFieldType.UserDefined -> name
-}
+fun DClassFile.DClassRawFieldType.toType(): String =
+    when (this) {
+        is DClassFile.DClassRawFieldType.UInt8 -> "uint8"
+        is DClassFile.DClassRawFieldType.Int8 -> "int8"
+        is DClassFile.DClassRawFieldType.UInt16 -> "uint16"
+        is DClassFile.DClassRawFieldType.Int16 -> "int16"
+        is DClassFile.DClassRawFieldType.UInt32 -> "uint32"
+        is DClassFile.DClassRawFieldType.Int32 -> "int32"
+        is DClassFile.DClassRawFieldType.UInt64 -> "uint64"
+        is DClassFile.DClassRawFieldType.Int64 -> "int64"
+        is DClassFile.DClassRawFieldType.Blob -> "blob"
+        is DClassFile.DClassRawFieldType.String -> "string"
+        is DClassFile.DClassRawFieldType.Char -> "char"
+        is DClassFile.DClassRawFieldType.Float64 -> "float64"
+        is DClassFile.DClassRawFieldType.UserType -> name
+    }
 
-fun DClassFile.DClassParameter.ArrayParameter.ArrayRange.toType(): String = when (this) {
-    is DClassFile.DClassParameter.ArrayParameter.ArrayRange.Empty -> "[]"
-    is DClassFile.DClassParameter.ArrayParameter.ArrayRange.Size -> "[$size]"
-    is DClassFile.DClassParameter.ArrayParameter.ArrayRange.Range -> "[$from - $to]"
-
-}
+fun DClassFile.DClassParameter.ArrayParameter.ArrayRange.toType(): String =
+    when (this) {
+        is DClassFile.DClassParameter.ArrayParameter.ArrayRange.Empty -> "[]"
+        is DClassFile.DClassParameter.ArrayParameter.ArrayRange.Size -> "[$size]"
+        is DClassFile.DClassParameter.ArrayParameter.ArrayRange.Range -> "[$from - $to]"
+    }
 
 fun DClassFile.DClassParameter.IntParameter.IntTransform.toType(): String {
     return "${operator}${literal}${next?.toType() ?: ""}"
@@ -349,51 +369,22 @@ fun DClassFile.DClassParameter.FloatParameter.FloatTransform.toType(): String {
     return "${operator}${literal}${next?.toType() ?: ""}"
 }
 
-fun DClassFile.DClassParameter.SizedParameter.SizeConstraint.toType(): String =
-    if (maxSize != null) "($minSize - $maxSize)" else "($minSize)"
+fun DClassFile.DClassFieldType.Sized.SizeConstraint.toType(): String = if (maxSize != null) "($minSize - $maxSize)" else "($minSize)"
 
-fun DClassFile.DClassParameter.toType(): String {
+fun String.toDClassFieldType(): DClassFile.DClassRawFieldType {
     return when (this) {
-        is DClassFile.DClassParameter.IntParameter -> {
-            "${type.toType()}${transform?.toType() ?: ""}"
-        }
-
-        is DClassFile.DClassParameter.ArrayParameter -> {
-            "$type${range.toType()}"
-        }
-
-        is DClassFile.DClassParameter.CharParameter -> {
-            "char"
-        }
-
-        is DClassFile.DClassParameter.FloatParameter -> {
-            "${type.toType()}${transform?.toType() ?: ""}"
-        }
-
-        is DClassFile.DClassParameter.SizedParameter -> {
-            "${type.toType()}${constraint?.toType() ?: ""}"
-        }
-
-        is DClassFile.DClassParameter.StructParameter -> {
-            struct
-        }
-    }
-}
-
-fun String.toDClassFieldType(): DClassFile.DClassFieldType {
-    return when (this) {
-        "uint8" -> DClassFile.DClassFieldType.UInt8
-        "int8" -> DClassFile.DClassFieldType.Int8
-        "uint16" -> DClassFile.DClassFieldType.UInt16
-        "int16" -> DClassFile.DClassFieldType.Int16
-        "uint32" -> DClassFile.DClassFieldType.UInt32
-        "int32" -> DClassFile.DClassFieldType.Int32
-        "uint64" -> DClassFile.DClassFieldType.UInt64
-        "int64" -> DClassFile.DClassFieldType.Int64
-        "float64" -> DClassFile.DClassFieldType.Float64
-        "char" -> DClassFile.DClassFieldType.Char
-        "string" -> DClassFile.DClassFieldType.String
-        "blob" -> DClassFile.DClassFieldType.Blob
-        else -> DClassFile.DClassFieldType.UserDefined(this)
+        "uint8" -> DClassFile.DClassRawFieldType.UInt8
+        "int8" -> DClassFile.DClassRawFieldType.Int8
+        "uint16" -> DClassFile.DClassRawFieldType.UInt16
+        "int16" -> DClassFile.DClassRawFieldType.Int16
+        "uint32" -> DClassFile.DClassRawFieldType.UInt32
+        "int32" -> DClassFile.DClassRawFieldType.Int32
+        "uint64" -> DClassFile.DClassRawFieldType.UInt64
+        "int64" -> DClassFile.DClassRawFieldType.Int64
+        "float64" -> DClassFile.DClassRawFieldType.Float64
+        "char" -> DClassFile.DClassRawFieldType.Char
+        "string" -> DClassFile.DClassRawFieldType.String
+        "blob" -> DClassFile.DClassRawFieldType.Blob
+        else -> DClassFile.DClassRawFieldType.UserType(this)
     }
 }

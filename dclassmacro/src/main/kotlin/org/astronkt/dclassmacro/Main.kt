@@ -5,12 +5,17 @@ import java.io.File
 
 fun main(args: Array<String>) {
     val inputFile = File(args.firstOrNull() ?: "../game.dc")
-    //println(DClassFileParser.tokens)
-    //DClassFileParser.tokenizer.tokenize(inputFile.readText())
-    //    .forEach { println("${it.tokenIndex}, \"${it.text}\" $it") }
-    val file = DClassFileParser.parseToEnd(inputFile.readText())
+    val fileSrc = inputFile.readText()
 
-    for (decl in file.decls) {
+    // debugTokens(fileSrc)
+    val file = DClassFileParser.parseToEnd(fileSrc)
+
+    // file.printDebug()
+    println(generateDClassHelper(file))
+}
+
+fun DClassFile.printDebug() {
+    for (decl in decls) {
         if (decl is DClassFile.TypeDecl.DClass) {
             println("${decl.name}: ${decl.parents} {")
             for (field in decl.fields) {
@@ -21,5 +26,10 @@ fun main(args: Array<String>) {
             println(decl)
         }
     }
-    //println(generateDClassHelper(file))
+}
+
+fun debugTokens(input: String) {
+    println(DClassFileParser.tokens)
+    DClassFileParser.tokenizer.tokenize(input)
+        .forEach { println("${it.tokenIndex}, \"${it.text}\" $it") }
 }
