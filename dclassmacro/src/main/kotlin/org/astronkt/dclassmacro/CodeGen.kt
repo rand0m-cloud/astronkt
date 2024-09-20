@@ -32,18 +32,17 @@ fun StringBuilder.generatePreamble(
     append("\t\tval dClassId = ${id}U.toDClassId()\n\n")
     append("\t\tobject Fields {\n")
     for (field in dClass.fields) {
-        append("\t\t\tval ${field.name}: FieldId = ${index.getFieldId(dClassName, field.name).id}U.toFieldId()\n")
+        //append("\t\t\tval ${field.name}: FieldId = ${index.getFieldId(dClassName, field.name).id}U.toFieldId()\n")
     }
     append("\t\t}\n")
     append("\t}\n")
-    append("\toverride val startingFieldId: UShort = ${index.firstFieldId(dClassName).id}U\n")
 }
 
 fun StringBuilder.generateFieldSpecs(dClass: DClassFile.TypeDecl.DClass) {
     append("\toverride val objectFields: List<DistributedField> = listOf(\n")
     for (field in dClass.fields) {
         val spec = field.toDistributedFieldSpec()
-        val isField = field is DClassFile.DClassField.Simple
+        val isField = field is DClassFile.DClassField.ParameterField
         append("\t\tDistributedField(\n")
         append("\t\t\tDistributedFieldSpec(\n")
         append("\t\t\t\t${spec.type.toTypeCode()},\n")
@@ -68,7 +67,7 @@ fun StringBuilder.generateFieldSpecs(dClass: DClassFile.TypeDecl.DClass) {
             "${
                 field.toFieldValueType()
                     .toOnSetCode(
-                        "on${if (isField) "Set" else ""}${field.name.replaceFirstChar { it.titlecase() }}",
+                        "on${if (isField) "Set" else ""}${"TODO"}",
                         "it",
                         "\t\t\t\t"
                     )
@@ -86,73 +85,73 @@ fun StringBuilder.generateFields(
     dClassName: String,
     dClass: DClassFile.TypeDecl.DClass
 ) {
-    for (field in dClass.fields) {
-        val type = field.toFieldValueType()
-        val id = index.getFieldId(dClassName, field.name).id
-        when (field) {
-            is DClassFile.DClassField.Simple -> {
-                append("\tvar ${field.name}: ${type.toKotlinType()}\n")
-                append(
-                    "\t\tget() = getField(${id}U.toFieldId())?.${type.toDestructureCodePrimitive()}\n"
-                )
-                append("\t\tset(value) = setField(${id}U.toFieldId(), value.toFieldValue())\n")
-            }
-
-            is DClassFile.DClassField.Method -> {
-                append("\tfun ${field.name}(")
-                for ((name, fieldType) in field.type) {
-                    append("$name: ${fieldType.toFieldValueType().toKotlinType()},")
-                }
-                append(") {\n")
-                append(
-                    "\t\tsetField(${
-                        index.getFieldId(
-                            dClassName,
-                            field.name
-                        ).id
-                    }U.toFieldId(), "
-                )
-                if (field.type.size == 1) {
-                    append(
-                        "${field.type[0].first}.toFieldValue()"
-                    )
-                } else {
-                    append("FieldValue.TupleValue(")
-                    for ((name, _) in field.type) {
-                        append("$name.toFieldValue(), ")
-                    }
-                    append(")")
-                }
-                append(")\n")
-                append("\t}\n")
-            }
-        }
-        append("\n")
-    }
+//    for (field in dClass.fields) {
+//        val type = field.toFieldValueType()
+//        val id = index.getFieldId(dClassName, "name").id
+//        when (field) {
+//            is DClassFile.DClassField.ParameterField -> {
+//                append("\tvar ${field.name}: ${type.toKotlinType()}\n")
+//                append(
+//                    "\t\tget() = getField(${id}U.toFieldId())?.${type.toDestructureCodePrimitive()}\n"
+//                )
+//                append("\t\tset(value) = setField(${id}U.toFieldId(), value.toFieldValue())\n")
+//            }
+//
+//            is DClassFile.DClassField.AtomicField -> {
+//                append("\tfun ${field.name}(")
+//                for ((name, fieldType) in field.type) {
+//                    append("$name: ${fieldType.toFieldValueType().toKotlinType()},")
+//                }
+//                append(") {\n")
+//                append(
+//                    "\t\tsetField(${
+//                        index.getFieldId(
+//                            dClassName,
+//                            field.name
+//                        ).id
+//                    }U.toFieldId(), "
+//                )
+//                if (field.type.size == 1) {
+//                    append(
+//                        "${field.type[0].first}.toFieldValue()"
+//                    )
+//                } else {
+//                    append("FieldValue.TupleValue(")
+//                    for ((name, _) in field.type) {
+//                        append("$name.toFieldValue(), ")
+//                    }
+//                    append(")")
+//                }
+//                append(")\n")
+//                append("\t}\n")
+//            }
+//        }
+//        append("\n")
+//    }
 }
 
 private fun StringBuilder.generateEventSetters(dClass: DClassFile.TypeDecl.DClass) {
-    for (field in dClass.fields) {
-        val type = field.toFieldValueType()
-        if (type is FieldValue.Type.Tuple) {
-            append("\topen fun on${field.name.replaceFirstChar { it.titlecase() }}(")
-            val method = field as DClassFile.DClassField.Method
-            for ((name, fieldType) in method.type) {
-                append("$name: ${fieldType.toFieldValueType().toKotlinType()}, ")
-            }
-            append("sender: ChannelId? = null) {}\n")
-        } else {
-            when (field) {
-                is DClassFile.DClassField.Simple -> {
-                    append("\topen fun onSet${field.name.replaceFirstChar { it.titlecase() }}(new: ${type.toKotlinType()}, sender: ChannelId? = null) {}\n")
-                }
-
-                is DClassFile.DClassField.Method -> {
-                    append("\topen fun on${field.name.replaceFirstChar { it.titlecase() }}(${field.type[0].first}: ${type.toKotlinType()}, sender: ChannelId? = null) {}\n")
-                }
-            }
-        }
-    }
+//    for (field in dClass.fields) {
+//        val type = field.toFieldValueType()
+//        if (type is FieldValue.Type.Tuple) {
+//            append("\topen fun on${field.name.replaceFirstChar { it.titlecase() }}(")
+//            val method = field as DClassFile.DClassField.AtomicField
+//            for ((name, fieldType) in method.type) {
+//                append("$name: ${fieldType.toFieldValueType().toKotlinType()}, ")
+//            }
+//            append("sender: ChannelId? = null) {}\n")
+//        } else {
+//            when (field) {
+//                is DClassFile.DClassField.ParameterField -> {
+//                    append("\topen fun onSet${field.name.replaceFirstChar { it.titlecase() }}(new: ${type.toKotlinType()}, sender: ChannelId? = null) {}\n")
+//                }
+//
+//                is DClassFile.DClassField.AtomicField -> {
+//                    append("\topen fun on${field.name.replaceFirstChar { it.titlecase() }}(${field.type[0].first}: ${type.toKotlinType()}, sender: ChannelId? = null) {}\n")
+//                }
+//            }
+//        }
+//    }
 }
 
 private fun StringBuilder.generateClassSpec(index: DClassFileIndex, file: DClassFile) {

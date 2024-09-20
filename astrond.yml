@@ -9,11 +9,6 @@ general:
 messagedirector:
     bind: 0.0.0.0:7199
 
-uberdogs:
-    - class: LoginManager
-      id: 4000
-      anonymous: true
-
 roles:
     - type: clientagent
       bind: 0.0.0.0:7198

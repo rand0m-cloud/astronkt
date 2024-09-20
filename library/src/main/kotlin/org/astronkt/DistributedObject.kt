@@ -5,8 +5,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.plus
 
 abstract class DistributedObject(val doId: DOId, val dclassId: DClassId) {
-    abstract val startingFieldId: UShort
-    abstract val objectFields: List<DistributedField>
+    abstract val objectFields: Map<FieldId, DistributedField>
     val coroutineScope: CoroutineScope =
         (if (isClient) clientRepository.objectsCoroutineScope else internalRepository.objectsCoroutineScope) + CoroutineName(
             "DO-$doId"
@@ -18,10 +17,10 @@ abstract class DistributedObject(val doId: DOId, val dclassId: DClassId) {
         isAlive = false
     }
 
-    fun getField(fieldId: FieldId): FieldValue? = objectFields[(fieldId.id - startingFieldId).toInt()].value
+    fun getField(fieldId: FieldId): FieldValue? = objectFields[fieldId]!!.value
 
     fun setField(fieldId: FieldId, fieldValue: FieldValue, fromNetwork: Boolean = false, sender: ChannelId? = null) {
-        objectFields[(fieldId.id - startingFieldId).toInt()].apply {
+        objectFields[fieldId]!!.apply {
             value = fieldValue
             onChange.invoke(fieldValue, sender)
         }

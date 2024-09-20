@@ -405,7 +405,7 @@ val _protocolMessages = listOf(
         2011U,
         listOf(
             ProtocolMessageArgumentSpec.Simple("context", FieldValue.Type.UInt32),
-            ProtocolMessageArgumentSpec.Simple("success", FieldValue.Type.Bool),
+            ProtocolMessageArgumentSpec.Simple("success", FieldValue.Type.UInt32),
             ProtocolMessageArgumentSpec.Simple("field_id", FieldValue.Type.UInt16),
             ProtocolMessageArgumentSpec.Dynamic
         )
@@ -835,7 +835,7 @@ val _protocolMessages = listOf(
         listOf(
             ProtocolMessageArgumentSpec.Simple("context", FieldValue.Type.UInt32),
             ProtocolMessageArgumentSpec.Simple("do_id", FieldValue.Type.UInt32),
-            ProtocolMessageArgumentSpec.Simple("is_activated", FieldValue.Type.Bool)
+            ProtocolMessageArgumentSpec.Simple("is_activated", FieldValue.Type.UInt8)
         )
     ),
     ProtocolMessageSpec(
