@@ -6,24 +6,35 @@ import java.nio.ByteOrder
 import java.nio.charset.Charset
 
 sealed class FieldValue {
+    sealed interface NumberType
+
     data class UInt64Value(val value: ULong) : FieldValue()
+
     data class Int64Value(val value: Long) : FieldValue()
 
     data class UInt32Value(val value: UInt) : FieldValue()
+
     data class Int32Value(val value: Int) : FieldValue()
 
     data class UInt16Value(val value: UShort) : FieldValue()
+
     data class Int16Value(val value: Short) : FieldValue()
 
     data class UInt8Value(val value: UByte) : FieldValue()
+
     data class Int8Value(val value: Byte) : FieldValue()
 
     data class CharValue(val value: Byte) : FieldValue()
+
     data class Float64Value(val value: Double) : FieldValue()
 
     data class StringValue(val value: String) : FieldValue()
+
     data class BlobValue(val value: ByteArray) : FieldValue()
+
     data class ArrayValue(val type: Type, val values: List<FieldValue>) : FieldValue()
+
+    data object EmptyValue : FieldValue()
 
     class TupleValue(vararg val value: FieldValue) : FieldValue()
 
@@ -32,41 +43,49 @@ sealed class FieldValue {
 
         data object UInt8 : Type() {
             fun read(buf: ByteBuffer): UByte = buf.get().toUByte()
+
             override fun readValue(buf: ByteBuffer): FieldValue = read(buf).toFieldValue()
         }
 
         data object Int8 : Type() {
             fun read(buf: ByteBuffer): Byte = buf.get()
+
             override fun readValue(buf: ByteBuffer): FieldValue = read(buf).toFieldValue()
         }
 
         data object UInt16 : Type() {
             fun read(buf: ByteBuffer): UShort = buf.getShort().toUShort()
+
             override fun readValue(buf: ByteBuffer): FieldValue = read(buf).toFieldValue()
         }
 
         data object Int16 : Type() {
             fun read(buf: ByteBuffer): Short = buf.getShort()
+
             override fun readValue(buf: ByteBuffer): FieldValue = read(buf).toFieldValue()
         }
 
         data object UInt32 : Type() {
             fun read(buf: ByteBuffer): UInt = buf.getInt().toUInt()
+
             override fun readValue(buf: ByteBuffer): FieldValue = read(buf).toFieldValue()
         }
 
         data object Int32 : Type() {
             fun read(buf: ByteBuffer): Int = buf.getInt()
+
             override fun readValue(buf: ByteBuffer): FieldValue = read(buf).toFieldValue()
         }
 
         data object UInt64 : Type() {
             fun read(buf: ByteBuffer): ULong = buf.getLong().toULong()
+
             override fun readValue(buf: ByteBuffer): FieldValue = read(buf).toFieldValue()
         }
 
         data object Int64 : Type() {
             fun read(buf: ByteBuffer): Long = buf.getLong()
+
             override fun readValue(buf: ByteBuffer): FieldValue = read(buf).toFieldValue()
         }
 
@@ -92,9 +111,10 @@ sealed class FieldValue {
         }
 
         class Tuple(vararg val types: Type) : Type() {
-            override fun readValue(buf: ByteBuffer): FieldValue = TupleValue(
-                *types.map { it.readValue(buf) }.toTypedArray()
-            )
+            override fun readValue(buf: ByteBuffer): FieldValue =
+                TupleValue(
+                    *types.map { it.readValue(buf) }.toTypedArray(),
+                )
         }
 
         class Array(val type: Type) : Type() {
@@ -112,12 +132,18 @@ sealed class FieldValue {
 
         data object Char : Type() {
             fun read(buf: ByteBuffer): Byte = buf.get()
+
             override fun readValue(buf: ByteBuffer): FieldValue = read(buf).toFieldValue()
         }
 
         data object Float64 : Type() {
             fun read(buf: ByteBuffer): Double = buf.getDouble()
+
             override fun readValue(buf: ByteBuffer): FieldValue = read(buf).toFieldValue()
+        }
+
+        data object Empty : Type() {
+            override fun readValue(buf: ByteBuffer): FieldValue = EmptyValue
         }
     }
 
@@ -143,65 +169,79 @@ sealed class FieldValue {
                 is TupleValue -> value.map { write(it.toBytes()) }
                 is CharValue -> write(byteArrayOf(value))
 
-                is UInt64Value -> write(
-                    ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).putLong(value.toLong()).array()
-                )
+                is UInt64Value ->
+                    write(
+                        ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).putLong(value.toLong()).array(),
+                    )
 
-                is Int64Value -> write(
-                    ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).putLong(value).array()
-                )
+                is Int64Value ->
+                    write(
+                        ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).putLong(value).array(),
+                    )
 
-                is UInt32Value -> write(
-                    ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(value.toInt()).array()
-                )
+                is UInt32Value ->
+                    write(
+                        ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(value.toInt()).array(),
+                    )
 
-                is Int32Value -> write(
-                    ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(value).array()
-                )
+                is Int32Value ->
+                    write(
+                        ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(value).array(),
+                    )
 
-                is UInt16Value -> write(
-                    ByteBuffer.allocate(2).order(ByteOrder.LITTLE_ENDIAN).putShort(value.toShort()).array()
-                )
+                is UInt16Value ->
+                    write(
+                        ByteBuffer.allocate(2).order(ByteOrder.LITTLE_ENDIAN).putShort(value.toShort()).array(),
+                    )
 
-                is Int16Value -> write(
-                    ByteBuffer.allocate(2).order(ByteOrder.LITTLE_ENDIAN).putShort(value).array()
-                )
+                is Int16Value ->
+                    write(
+                        ByteBuffer.allocate(2).order(ByteOrder.LITTLE_ENDIAN).putShort(value).array(),
+                    )
 
                 is UInt8Value -> write(arrayOf(value.toByte()).toByteArray())
                 is Int8Value -> write(arrayOf(value).toByteArray())
 
                 is Float64Value -> write(ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN).putDouble(value).array())
+                EmptyValue -> {}
             }
         }.toByteArray()
     }
 
-    fun type(): Type = when (this) {
-        is UInt64Value -> Type.UInt64
-        is Int64Value -> Type.Int64
+    fun type(): Type =
+        when (this) {
+            is UInt64Value -> Type.UInt64
+            is Int64Value -> Type.Int64
 
-        is UInt32Value -> Type.UInt32
-        is Int32Value -> Type.Int32
+            is UInt32Value -> Type.UInt32
+            is Int32Value -> Type.Int32
 
-        is UInt16Value -> Type.UInt16
-        is Int16Value -> Type.Int16
+            is UInt16Value -> Type.UInt16
+            is Int16Value -> Type.Int16
 
-        is UInt8Value -> Type.UInt8
-        is Int8Value -> Type.Int8
+            is UInt8Value -> Type.UInt8
+            is Int8Value -> Type.Int8
 
-        is StringValue -> Type.String
-        is BlobValue -> Type.Blob
-        is ArrayValue -> Type.Array(type)
-        is CharValue -> Type.Char
-        is Float64Value -> Type.Float64
-        is TupleValue -> Type.Tuple(
-            *value.map {
-                type()
-            }.toTypedArray()
-        )
-    }
+            is StringValue -> Type.String
+            is BlobValue -> Type.Blob
+            is ArrayValue -> Type.Array(type)
+            is CharValue -> Type.Char
+            is Float64Value -> Type.Float64
+            is TupleValue ->
+                Type.Tuple(
+                    *value.map {
+                        type()
+                    }.toTypedArray(),
+                )
+
+            EmptyValue -> Type.Empty
+        }
 
     companion object {
-        internal fun fromBytes(type: Type, bytes: ByteBuffer): FieldValue {
+        internal fun fromBytes(
+            type: Type,
+            bytes: ByteBuffer,
+        ): FieldValue {
             return when (type) {
                 is Type.UInt64 -> bytes.getLong().toULong().toFieldValue()
                 is Type.Int64 -> bytes.getLong().toFieldValue()
@@ -232,14 +272,13 @@ sealed class FieldValue {
                 is Type.Array -> {
                     val len = bytes.getShort()
                     ArrayValue(type.type, type.read(bytes))
-
                 }
 
                 is Type.Tuple -> {
                     TupleValue(
                         *type.types.map {
                             fromBytes(it, bytes)
-                        }.toTypedArray()
+                        }.toTypedArray(),
                     )
                 }
 
@@ -250,63 +289,86 @@ sealed class FieldValue {
                 is Type.Float64 -> {
                     type.read(bytes).toFieldValue()
                 }
+
+                Type.Empty -> EmptyValue
             }
         }
     }
 
-    fun toUInt64(): ULong? = when (this) {
-        is UInt64Value -> value
-        else -> null
-    }
+    fun toUInt64(): ULong? =
+        when (this) {
+            is UInt64Value -> value
+            else -> null
+        }
 
-    fun toUInt32(): UInt? = when (this) {
-        is UInt32Value -> value
-        else -> null
-    }
+    fun toUInt32(): UInt? =
+        when (this) {
+            is UInt32Value -> value
+            else -> null
+        }
 
-    fun toUInt16(): UShort? = when (this) {
-        is UInt16Value -> value
-        else -> null
-    }
+    fun toUInt16(): UShort? =
+        when (this) {
+            is UInt16Value -> value
+            else -> null
+        }
 
-    fun toUInt8(): UByte? = when (this) {
-        is UInt8Value -> value
-        else -> null
-    }
+    fun toUInt8(): UByte? =
+        when (this) {
+            is UInt8Value -> value
+            else -> null
+        }
 
-    fun toStringValue(): String? = when (this) {
-        is StringValue -> value
-        else -> null
-    }
+    fun toStringValue(): String? =
+        when (this) {
+            is StringValue -> value
+            else -> null
+        }
 
-    fun toBlob(): ByteArray? = when (this) {
-        is BlobValue -> value
-        else -> null
-    }
+    fun toDouble(): Double? =
+        when (this) {
+            is Float64Value -> value
+            else -> null
+        }
 
-    fun toTuple(): List<FieldValue>? = when (this) {
-        is TupleValue -> value.toList()
-        else -> null
-    }
+    fun toBlob(): ByteArray? =
+        when (this) {
+            is BlobValue -> value
+            else -> null
+        }
+
+    fun toTuple(): List<FieldValue>? =
+        when (this) {
+            is TupleValue -> value.toList()
+            else -> null
+        }
 }
 
 fun ULong.toFieldValue(): FieldValue = FieldValue.UInt64Value(this)
+
 fun Long.toFieldValue(): FieldValue = FieldValue.Int64Value(this)
 
 fun UInt.toFieldValue(): FieldValue = FieldValue.UInt32Value(this)
+
 fun Int.toFieldValue(): FieldValue = FieldValue.Int32Value(this)
 
 fun UShort.toFieldValue(): FieldValue = FieldValue.UInt16Value(this)
+
 fun Short.toFieldValue(): FieldValue = FieldValue.Int16Value(this)
 
 fun UByte.toFieldValue(): FieldValue = FieldValue.UInt8Value(this)
+
 fun Byte.toFieldValue(): FieldValue = FieldValue.Int8Value(this)
+
+fun Char.toFieldValue(): FieldValue = FieldValue.UInt8Value(code.toUByte())
 
 fun Double.toFieldValue(): FieldValue = FieldValue.Float64Value(this)
 
 fun String.toFieldValue(): FieldValue = FieldValue.StringValue(this)
-fun List<FieldValue>.toBytes(): ByteArray = fold(ByteArrayOutputStream(), { out, value ->
-    out.apply {
-        write(value.toBytes())
-    }
-}).toByteArray()
+
+fun List<FieldValue>.toBytes(): ByteArray =
+    fold(ByteArrayOutputStream(), { out, value ->
+        out.apply {
+            write(value.toBytes())
+        }
+    }).toByteArray()
