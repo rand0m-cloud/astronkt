@@ -1,5 +1,5 @@
 [versions]
-kotlin = "2.0.0"
+kotlin = "2.0.20"
 kotlinx-coroutines = "1.8.1"
 better-parse = "0.4.4"
 [libraries]

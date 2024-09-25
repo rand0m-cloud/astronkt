@@ -87,7 +87,7 @@ fun DClassFile.DClassFieldType.toDestructureCodePrimitive(index: DClassFileIndex
         FieldValue.Type.Blob -> "toBlob()!!"
         FieldValue.Type.Char -> "toChar()!!"
         FieldValue.Type.Empty -> "toEmpty()!!"
-        is FieldValue.Type.Tuple -> error("tuples are not a simple primitive")
+        is FieldValue.Type.Tuple -> null
     }
 
 fun DClassFile.DClassParameter.IntParameter.IntTransform.toTransformCodeBody(prependIndent: String): String {
@@ -141,13 +141,15 @@ fun DClassFile.DClassFieldType.needsTransform(): Boolean =
         else -> false
     }
 
-fun DClassFile.DClassFieldType.userDefinedType(): String? = when (this) {
-    is DClassFile.DClassFieldType.Array -> type.userDefinedType()
-    is DClassFile.DClassFieldType.User -> type.name
-    else -> null
-}
+fun DClassFile.DClassFieldType.userDefinedType(): String? =
+    when (this) {
+        is DClassFile.DClassFieldType.Array -> type.userDefinedType()
+        is DClassFile.DClassFieldType.User -> type.name
+        else -> null
+    }
 
-fun DClassFile.DClassFieldType.arrayType(): DClassFile.DClassFieldType? = when (this) {
-    is DClassFile.DClassFieldType.Array -> type
-    else -> null
-}
+fun DClassFile.DClassFieldType.arrayType(): DClassFile.DClassFieldType? =
+    when (this) {
+        is DClassFile.DClassFieldType.Array -> type
+        else -> null
+    }

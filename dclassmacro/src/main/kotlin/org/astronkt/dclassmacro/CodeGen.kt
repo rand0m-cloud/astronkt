@@ -2,7 +2,7 @@ package org.astronkt.dclassmacro
 
 import org.astronkt.DistributedFieldModifiers
 import org.astronkt.FieldValue
-
+import org.astronkt.ProtocolMessageArgumentSpec.Dynamic.type
 
 fun generateDClassHelper(dClassFile: DClassFile): String =
     buildString {
@@ -18,6 +18,7 @@ fun generateDClassHelper(dClassFile: DClassFile): String =
                 is DClassFile.TypeDecl.TypeDef -> generateTypeDef(index, decl)
                 else -> {}
             }
+            append("\n")
         }
         for (dClassName in index.dClasses) {
             val (dClassId, dClass) = index.byDClassName[dClassName]!!
@@ -27,7 +28,7 @@ fun generateDClassHelper(dClassFile: DClassFile): String =
             generatePreamble(index, dClassName, id, dClass)
             generateFieldSpecs(index, dClass)
             generateFields(index, dClassName, dClass)
-            generateEventSetters(dClass)
+            generateEventSetters(index, dClass)
 
             append("}\n\n")
         }
@@ -61,7 +62,7 @@ fun StringBuilder.generateFieldSpecs(
     for ((localIndex, field) in dClass.fields.withIndex()) {
         val fieldId = index.getFieldId(dClass.name, localIndex.toUShort()).id
         val fieldName = field.name ?: "field$fieldId"
-        val spec = field.toDistributedFieldSpec(index)
+        val spec = field.toDistributedFieldSpec(index, dClass.name)
         val isField = field is DClassFile.DClassField.ParameterField
         append("\t\t${fieldId}U.toFieldId() to DistributedField(\n")
         append("\t\t\tDistributedFieldSpec(\n")
@@ -87,8 +88,9 @@ fun StringBuilder.generateFieldSpecs(
             "${
                 field
                     .toOnSetCode(
-                        "on${if (isField) "Set" else ""}${fieldName.replaceFirstChar { it.uppercase() }}",
-                        "it",
+                        index,
+                        dClass.name,
+                        localIndex,
                         "\t\t\t\t",
                     )
             }\n",
@@ -104,8 +106,8 @@ fun StringBuilder.generateFields(
     dClassName: String,
     dClass: DClassFile.TypeDecl.DClass,
 ) {
-    for ((localIndex, field) in dClass.fields.withIndex()) {
-        val id = index.getFieldId(dClassName, localIndex.toUShort()).id
+    for ((localFieldIndex, field) in dClass.fields.withIndex()) {
+        val id = index.getFieldId(dClassName, localFieldIndex.toUShort()).id
         when (field) {
             is DClassFile.DClassField.ParameterField -> {
                 val type = field.parameter.type
@@ -114,12 +116,11 @@ fun StringBuilder.generateFields(
                 val userDefined = type.userDefinedType()
                 append("\tvar ${field.name}: $userType\n\t\tget() = ")
 
-                append(type.destructure(index, "getField(${id}U.toFieldId())!!"))
+                append(type.destructure(index, "getField(${id}U.toFieldId())!!", "\t\t"))
                 append("\n")
                 append("\t\tset(value) { ")
-                append(type.restructure(index, "value"))
+                append(type.restructure(index, "value", "\t\t"))
                 append("}\n")
-
             }
 
             is DClassFile.DClassField.AtomicField -> {
@@ -136,7 +137,7 @@ fun StringBuilder.generateFields(
                             it.name ?: "arg$localIndex",
                             it.type,
                             it.type.toRawFieldValueType(index),
-                            it.type.toUserKotlinType()
+                            it.type.toUserKotlinType(),
                         )
                     }
                 append("\tfun ${field.name}(")
@@ -150,14 +151,14 @@ fun StringBuilder.generateFields(
                 when (types.size) {
                     0 -> append("FieldValue.EmptyValue)")
                     1 -> {
-                        append(types[0].type.restructure(index, types[0].name))
+                        append(types[0].type.restructure(index, types[0].name, "\t\t"))
                         append(")")
                     }
 
                     else -> {
                         append("FieldValue.TupleValue(\n\t\t\t")
                         for ((name, type, rawType, userType) in types) {
-                            append(type.restructure(index, name))
+                            append(type.restructure(index, name, "\t\t"))
                             append(", \n\t\t\t")
                         }
                         append("\t))")
@@ -166,34 +167,72 @@ fun StringBuilder.generateFields(
                 append("\n\t}\n")
             }
 
-            is DClassFile.DClassField.MolecularField -> ""
+            is DClassFile.DClassField.MolecularField -> {
+                assert(field.fields.size > 1) { "expected molecular to have more than one field" }
+
+                val name = field.name
+                val fieldMap = index.getDClassFields(dClassName)
+                val atoms =
+                    field.fields.map { atomName -> fieldMap.find { it.name == atomName }!! }.flatMap { atom ->
+                        with(index) { atom.parameters(dClassName) }
+                    }
+
+                append("\tfun $name(")
+                for ((localIndex, atom) in atoms.withIndex()) {
+                    append("${atom.name ?: "arg$localIndex"}: ${atom.type.toUserKotlinType()}, ")
+                }
+                append(") {\n")
+
+                for ((localIndex, atom) in atoms.withIndex()) {
+                    append("\t\tval ${atom.name ?: "arg${localIndex}Value"} = ")
+                    append(atom.type.restructure(index, "arg$localIndex", "\t\t"))
+                    append("\n")
+                }
+
+                append("\n")
+
+                val molecularFieldId = index.getFieldId(dClassName, localFieldIndex.toUShort())
+                append("\t\tsetField(${molecularFieldId.id}U.toFieldId(), FieldValue.TupleValue(")
+
+                for ((localIndex, _) in atoms.withIndex()) {
+                    append("arg${localIndex}Value, ")
+                }
+
+                append("))\n")
+                append("\t}\n")
+            }
         }
         append("\n")
     }
 }
 
-private fun StringBuilder.generateEventSetters(dClass: DClassFile.TypeDecl.DClass) {
-//    for (field in dClass.fields) {
-//        val type = field.toFieldValueType()
-//        if (type is FieldValue.Type.Tuple) {
-//            append("\topen fun on${field.name.replaceFirstChar { it.titlecase() }}(")
-//            val method = field as DClassFile.DClassField.AtomicField
-//            for ((name, fieldType) in method.type) {
-//                append("$name: ${fieldType.toFieldValueType().toKotlinType()}, ")
-//            }
-//            append("sender: ChannelId? = null) {}\n")
-//        } else {
-//            when (field) {
-//                is DClassFile.DClassField.ParameterField -> {
-//                    append("\topen fun onSet${field.name.replaceFirstChar { it.titlecase() }}(new: ${type.toKotlinType()}, sender: ChannelId? = null) {}\n")
-//                }
-//
-//                is DClassFile.DClassField.AtomicField -> {
-//                    append("\topen fun on${field.name.replaceFirstChar { it.titlecase() }}(${field.type[0].first}: ${type.toKotlinType()}, sender: ChannelId? = null) {}\n")
-//                }
-//            }
-//        }
-//    }
+private fun StringBuilder.generateEventSetters(
+    index: DClassFileIndex,
+    dClass: DClassFile.TypeDecl.DClass,
+) {
+    for ((id, field)in dClass.fields.withIndex()) {
+        val fieldId = index.getFieldId(dClass.name, id.toUShort())
+        val fieldName = (field.name ?: "field${fieldId.id}").replaceFirstChar { it.uppercase() }
+        val parameters = with(index) { field.parameters(dClass.name) }
+
+        when (field) {
+            is DClassFile.DClassField.ParameterField -> {
+                append("\topen fun onSet$fieldName(")
+            }
+            is DClassFile.DClassField.AtomicField -> {
+                append("\topen fun on$fieldName(")
+            }
+            is DClassFile.DClassField.MolecularField -> {
+                append("\topen fun on$fieldName(")
+            }
+        }
+
+        for ((localIndex, parameter) in parameters.withIndex()) {
+            val paramName = parameter.name ?: "arg$localIndex"
+            append("$paramName: ${parameter.type.toUserKotlinType()}, ")
+        }
+        append("sender: ChannelId? = null) {}\n")
+    }
 }
 
 private fun StringBuilder.generateClassSpec(
@@ -201,36 +240,53 @@ private fun StringBuilder.generateClassSpec(
     file: DClassFile,
 ) {
     append("val classSpecRepository = ClassSpecRepository.build {\n")
-    index.dClasses.forEach {
-        val dClass = index.byDClassName[it]!!.second
+    for (decl in file.decls) {
+        when (decl) {
+            is DClassFile.TypeDecl.DClass -> {
+                val dClass = decl
 
-        append("\tdclass {\n")
-        for (field in dClass.fields) {
-            append("\t\tfield(${field.toRawFieldValueType(index).toTypeCode()})")
-            val spec = field.toDistributedFieldSpec(index)
+                append("\t// ${dClass.name}\n")
+                append("\tdclass {\n")
+                for (field in dClass.fields) {
+                    append("\t\tfield(${field.toRawFieldValueType(index, dClass.name).toTypeCode()})")
+                    val spec = field.toDistributedFieldSpec(index, dClass.name)
 
-            if (spec.modifiers == DistributedFieldModifiers()) {
-                append("\n")
-                continue
+                    if (spec.modifiers == DistributedFieldModifiers()) {
+                        append("\n")
+                        continue
+                    }
+
+                    append(" {\n")
+
+                    val printModifier = { keyword: String -> append("\t\t\t$keyword()\n") }
+                    if (spec.modifiers.ram) printModifier("ram")
+                    if (spec.modifiers.required) printModifier("required")
+                    if (spec.modifiers.db) printModifier("db")
+                    if (spec.modifiers.airecv) printModifier("airecv")
+                    if (spec.modifiers.ownrecv) printModifier("ownrecv")
+                    if (spec.modifiers.clrecv) printModifier("clrecv")
+                    if (spec.modifiers.broadcast) printModifier("broadcast")
+                    if (spec.modifiers.ownsend) printModifier("ownsend")
+                    if (spec.modifiers.clsend) printModifier("clsend")
+
+                    append("\t\t}\n")
+                }
+
+                append("\t}\n")
             }
+            is DClassFile.TypeDecl.Struct -> {
+                val struct = decl
+                append("\t// ${struct.name}\n")
+                append("\tstruct {\n")
 
-            append(" {\n")
+                for (field in struct.parameters) {
+                    append("\t\tfield(${field.type.toRawFieldValueType(index).toTypeCode()})\n")
+                }
 
-            val printModifier = { keyword: String -> append("\t\t\t$keyword()\n") }
-            if (spec.modifiers.ram) printModifier("ram")
-            if (spec.modifiers.required) printModifier("required")
-            if (spec.modifiers.db) printModifier("db")
-            if (spec.modifiers.airecv) printModifier("airecv")
-            if (spec.modifiers.ownrecv) printModifier("ownrecv")
-            if (spec.modifiers.clrecv) printModifier("clrecv")
-            if (spec.modifiers.broadcast) printModifier("broadcast")
-            if (spec.modifiers.ownsend) printModifier("ownsend")
-            if (spec.modifiers.clsend) printModifier("clsend")
-
-            append("\t\t}\n")
+                append("\t}\n")
+            }
+            is DClassFile.TypeDecl.TypeDef -> {}
         }
-
-        append("\t}\n")
     }
     append("}\n")
 }
@@ -252,31 +308,57 @@ private fun DClassFile.DClassFieldType.generateTransformBody(prependIndent: Stri
 }
 
 private fun DClassFile.DClassField.toOnSetCode(
-    method: String,
-    variable: String,
+    index: DClassFileIndex,
+    dClassName: String,
+    localIndex: Int,
     linePrepend: String,
-): String = ""
-// when (this) {
-//    is FieldValue.Type.Tuple -> {
-//        buildString {
-//            append("${linePrepend}it.toTuple()!!.let { values ->\n")
-//            for ((index, type) in types.withIndex()) {
-//                append("${linePrepend}\tval t$index = values[$index].${type.toDestructureCodePrimitive()}\n")
-//            }
-//            append("${linePrepend}\t$method(")
-//            for (i in types.indices) {
-//                append("t$i, ")
-//            }
-//            append("sender)\n")
-//            append("$linePrepend}")
-//        }
-//    }
-//    FieldValue.Type.Empty -> "$linePrepend$method(sender)"
+): String {
+    val fieldName = (name ?: "field$localIndex").replaceFirstChar { it.uppercase() }
+    val methodName =
+        when (this) {
+            is DClassFile.DClassField.ParameterField -> "onSet$fieldName"
+            else -> "on$fieldName"
+        }
 
-//    else -> "${linePrepend}$method($variable.${toDestructureCodePrimitive()}, sender)"
-// }
+    val parameters = with(index) { parameters(dClassName) }
+    return when (parameters.size) {
+        0 -> {
+            buildString {
+                append("${linePrepend}$methodName(sender)")
+            }
+        }
 
-fun StringBuilder.generateTypeDef(index: DClassFileIndex, typeDef: DClassFile.TypeDecl.TypeDef) {
+        1 -> {
+            buildString {
+                append("${linePrepend}$methodName(")
+                append(parameters[0].type.destructure(index, "it", "${linePrepend}\t"))
+                append(", sender)")
+            }
+        }
+        else -> {
+            buildString {
+                append("${linePrepend}it.toTuple()!!.let { values ->\n")
+                for ((localIndex, parameter) in parameters.withIndex()) {
+                    append("${linePrepend}val t$localIndex = ")
+                    append(parameter.type.destructure(index, "values[$localIndex]", "${linePrepend}\t"))
+                    append("\n")
+                }
+
+                append("${linePrepend}$methodName(")
+                for ((localIndex, _) in parameters.withIndex()) {
+                    append("t$localIndex, ")
+                }
+                append("sender)\n")
+                append("$linePrepend}")
+            }
+        }
+    }
+}
+
+fun StringBuilder.generateTypeDef(
+    index: DClassFileIndex,
+    typeDef: DClassFile.TypeDecl.TypeDef,
+) {
     val name = typeDef.newTypeName
     val type = typeDef.type
     val rawType = type.toRawFieldValueType(index)
@@ -288,7 +370,7 @@ fun StringBuilder.generateTypeDef(index: DClassFileIndex, typeDef: DClassFile.Ty
     append("\t\toverride fun fromFieldValue(value: FieldValue): $name {\n")
 
     append("\t\t\tval inner = ")
-    append(type.destructure(index, "value"))
+    append(type.destructure(index, "value", "\t\t\t"))
 
     append("\n")
 
@@ -297,14 +379,17 @@ fun StringBuilder.generateTypeDef(index: DClassFileIndex, typeDef: DClassFile.Ty
     append("\t\toverride val type: FieldValue.Type = ${rawType.toTypeCode()}\n\n")
 
     append("\t\toverride fun $name.toFieldValue(): FieldValue = ")
-    append(type.restructure(index, "inner"))
+    append(type.restructure(index, "inner", "\t\t"))
     append("\n")
 
     append("\t}\n")
     append("}\n")
 }
 
-fun StringBuilder.generateStruct(index: DClassFileIndex, struct: DClassFile.TypeDecl.Struct) {
+fun StringBuilder.generateStruct(
+    index: DClassFileIndex,
+    struct: DClassFile.TypeDecl.Struct,
+) {
     val name = struct.name
     val structType = FieldValue.Type.Tuple(*struct.parameters.map { it.type.toRawFieldValueType(index) }.toTypedArray())
     append("data class $name(")
@@ -319,7 +404,6 @@ fun StringBuilder.generateStruct(index: DClassFileIndex, struct: DClassFile.Type
     append("\t\toverride fun fromFieldValue(value: FieldValue): $name {\n")
     append("\t\t\tval tuple = value.toTuple()!!\n")
 
-    // TODO: add transform logic, should be okay for now when type checked
     for ((localIndex, parameter) in struct.parameters.withIndex()) {
         val paramName = parameter.name ?: "arg$localIndex"
         val destructure = parameter.type.toDestructureCodePrimitive(index)
@@ -328,7 +412,7 @@ fun StringBuilder.generateStruct(index: DClassFileIndex, struct: DClassFile.Type
 
         append("\t\t\tval $paramName = ")
 
-        append(parameter.type.destructure(index, "tuple[$localIndex]"))
+        append(parameter.type.destructure(index, "tuple[$localIndex]", "\t\t\t"))
 
         append("\n")
     }
@@ -338,17 +422,20 @@ fun StringBuilder.generateStruct(index: DClassFileIndex, struct: DClassFile.Type
     append("\t\t\tFieldValue.TupleValue(")
     append(
         struct.parameters.mapIndexed { localIndex, it ->
-            it.type.restructure(index, it.name ?: "arg$localIndex")
+            it.type.restructure(index, it.name ?: "arg$localIndex", "\t\t\t")
         }
-            .joinToString(", ")
+            .joinToString(", "),
     )
     append(")\n")
     append("\t}\n")
     append("}\n")
 }
 
-
-fun DClassFile.DClassFieldType.destructure(index: DClassFileIndex, expr: String): String {
+fun DClassFile.DClassFieldType.destructure(
+    index: DClassFileIndex,
+    expr: String,
+    prependIndent: String,
+): String {
     val arrayType = arrayType()
     val userDefined = userDefinedType()
     val destructure = toDestructureCodePrimitive(index)
@@ -358,16 +445,17 @@ fun DClassFile.DClassFieldType.destructure(index: DClassFileIndex, expr: String)
             append("with($userDefined) { ")
         }
 
-        append("$expr.$destructure")
         if (arrayType != null) {
+            append(expr)
+            if (destructure != null) append(".$destructure")
+
             var subArrayType = arrayType
             var neededBraces = 0
             while (true) {
                 append(".map { ")
                 neededBraces += 1
 
-                val next = subArrayType!!.arrayType()
-                if (next == null) break
+                val next = subArrayType!!.arrayType() ?: break
 
                 append("it.toList()!!")
                 subArrayType = next
@@ -376,28 +464,36 @@ fun DClassFile.DClassFieldType.destructure(index: DClassFileIndex, expr: String)
             if (userDefined != null) {
                 append("fromFieldValue(it)")
             } else {
-                append("it.${subArrayType!!.toDestructureCodePrimitive(index)}")
+                append(subArrayType!!.destructure(index, "it", prependIndent))
             }
 
             for (i in 0..<neededBraces) {
                 append(" }")
             }
-        }
+        } else if (userDefined != null) {
+            append("fromFieldValue(it)")
+        } else {
+            append(expr)
+            if (destructure != null) append(".$destructure")
 
-        if (needsTransform()) {
-            append(".transform {\n")
-            append(generateTransformBody("\t\t\t"))
-            append("\n\t\t}")
+            if (needsTransform()) {
+                append(".transform {\n")
+                append(generateTransformBody("$prependIndent\t"))
+                append("\n$prependIndent}")
+            }
         }
 
         if (userDefined != null) {
             append("}")
         }
-
     }
 }
 
-fun DClassFile.DClassFieldType.restructure(index: DClassFileIndex, expr: String): String {
+fun DClassFile.DClassFieldType.restructure(
+    index: DClassFileIndex,
+    expr: String,
+    prependIndent: String,
+): String {
     val arrayType = arrayType()
     val userDefined = userDefinedType()
 
@@ -409,22 +505,21 @@ fun DClassFile.DClassFieldType.restructure(index: DClassFileIndex, expr: String)
         if (arrayType != null) {
             append("FieldValue.ArrayValue(${arrayType.toRawFieldValueType(index).toTypeCode()}, $expr")
 
-            var subArrayType = arrayType
+            var subArrayType: DClassFile.DClassFieldType = arrayType as DClassFile.DClassFieldType
             var neededBraces = 0
             while (true) {
                 append(".map { it")
                 neededBraces += 1
 
-                val next = subArrayType!!.arrayType()
-                if (next == null) break
+                val next = subArrayType!!.arrayType() ?: break
 
                 subArrayType = next
             }
 
             if (needsTransform()) {
                 append(".unTransform(${subArrayType!!.toRawFieldValueType(index).toTypeCode()}) {\n")
-                append(generateTransformBody("\t\t\t"))
-                append("\n\t\t}")
+                append(generateTransformBody("$prependIndent\t"))
+                append("\n$prependIndent}")
             }
             for (i in 0..<neededBraces) {
                 append(".toFieldValue() }")
@@ -440,16 +535,14 @@ fun DClassFile.DClassFieldType.restructure(index: DClassFileIndex, expr: String)
         }
         append(".toFieldValue()")
 
-
         if (userDefined != null) {
             append("}")
-
         }
     }
-
 }
 
-fun FieldValue.Type.innerType(): FieldValue.Type? = when (this) {
-    is FieldValue.Type.Array -> type
-    else -> null
-}
+fun FieldValue.Type.innerType(): FieldValue.Type? =
+    when (this) {
+        is FieldValue.Type.Array -> type
+        else -> null
+    }

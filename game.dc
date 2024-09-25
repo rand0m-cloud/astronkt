@@ -33,7 +33,7 @@ typedef uint8 bool;
 
 typedef uint32 DoId;
 
-typedef DoId[] DoIdList;
+typedef DoId DoIdList[];
 
 struct AvatarPendingDel {
   uint32 Avatar;
