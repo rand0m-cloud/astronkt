@@ -224,9 +224,11 @@ data class DClassFile(val decls: List<TypeDecl>) {
 
         data object Char : DClassFieldType()
 
-        data class Array(val type: DClassFieldType, val range: DClassParameter.ArrayParameter.ArrayRange) : DClassFieldType()
+        data class Array(val type: DClassFieldType, val range: DClassParameter.ArrayParameter.ArrayRange) :
+            DClassFieldType()
 
-        data class Sized(val type: DClassRawFieldType.SizedType, val sizeConstraint: SizeConstraint?) : DClassFieldType() {
+        data class Sized(val type: DClassRawFieldType.SizedType, val sizeConstraint: SizeConstraint?) :
+            DClassFieldType() {
             data class SizeConstraint(val minSize: Literal.IntLiteral, val maxSize: Literal.IntLiteral?)
         }
 
@@ -234,12 +236,12 @@ data class DClassFile(val decls: List<TypeDecl>) {
     }
 }
 
-data class DClassFileIndex(
-    val dClasses: List<String>,
-    val byDClassName: Map<String, Pair<DClassId, DClassFile.TypeDecl.DClass>>,
-    val byDClassField: Map<Pair<String, UShort>, FieldId>,
-    val userTypes: Map<String, FieldValue.Type>,
-) {
+sealed interface DClassFileIndex {
+    val dClasses: List<String>
+    val byDClassName: Map<String, Pair<DClassId, DClassFile.TypeDecl.DClass>>
+    val byDClassField: Map<Pair<String, UShort>, FieldId>
+    val userTypes: Map<String, FieldValue.Type>
+
     fun getFieldId(
         dClassName: String,
         localFieldIndex: UShort,
@@ -248,52 +250,67 @@ data class DClassFileIndex(
     fun getDClassId(dClassName: String): DClassId = byDClassName[dClassName]!!.first
 }
 
-fun DClassFile.buildIndex(): DClassFileIndex {
-    var dClassId = 0U
-    var fieldId = 0U
+private class MutableDClassFileIndex(
+    override val dClasses: MutableList<String> = mutableListOf(),
+    override val byDClassName: MutableMap<String, Pair<DClassId, DClassFile.TypeDecl.DClass>> = mutableMapOf(),
+    override val byDClassField: MutableMap<Pair<String, UShort>, FieldId> = mutableMapOf(),
+    override val userTypes: MutableMap<String, FieldValue.Type> = mutableMapOf(),
+    var dClassId: UShort = 0U,
+    var fieldId: UShort = 0U
+) : DClassFileIndex {
+    fun incFieldId() {
+        fieldId = fieldId.inc()
+    }
 
-    val dClasses = mutableListOf<String>()
-    val byDClassName = mutableMapOf<String, Pair<DClassId, DClassFile.TypeDecl.DClass>>()
-    val byDClassField = mutableMapOf<Pair<String, UShort>, FieldId>()
-    val userTypes = mutableMapOf<String, FieldValue.Type>()
+    fun incDClassId() {
+        dClassId = dClassId.inc()
+    }
+}
+
+fun DClassFile.buildIndex(): DClassFileIndex {
+    val index = MutableDClassFileIndex()
 
     for (decl in decls) {
         when (decl) {
             is DClassFile.TypeDecl.DClass -> {
-                dClasses.add(decl.name)
-                byDClassName[decl.name] = dClassId.toDClassId() to decl
+                index.dClasses.add(decl.name)
+                index.byDClassName[decl.name] = index.dClassId.toDClassId() to decl
 
-                for ((index, field) in decl.fields.withIndex()) {
-                    byDClassField[decl.name to index.toUShort()] = fieldId.toFieldId()
-                    fieldId += 1U
+                for ((localIndex, field) in decl.fields.withIndex()) {
+                    index.byDClassField[decl.name to localIndex.toUShort()] = index.fieldId.toFieldId()
+                    index.incFieldId()
                 }
 
-                dClassId += 1U
+                index.incDClassId()
             }
 
             is DClassFile.TypeDecl.Struct -> {
                 for (param in decl.parameters) {
-                    fieldId += 1U
+                    index.incFieldId()
                 }
 
-                userTypes[decl.name] = FieldValue.Type.Tuple(*decl.parameters.map { it.type.toRawFieldValueType() }.toTypedArray())
-                dClassId += 1U
+                index.userTypes[decl.name] =
+                    FieldValue.Type.Tuple(*decl.parameters.map { it.type.toRawFieldValueType(index) }.toTypedArray())
+                index.incDClassId()
             }
-            is DClassFile.TypeDecl.TypeDef -> {}
+
+            is DClassFile.TypeDecl.TypeDef -> {
+                index.userTypes[decl.newTypeName] = decl.type.toRawFieldValueType(index)
+            }
         }
     }
 
-    return DClassFileIndex(dClasses, byDClassName, byDClassField, userTypes)
+    return index
 }
 
-fun DClassFile.DClassField.toRawFieldValueType(): FieldValue.Type {
+fun DClassFile.DClassField.toRawFieldValueType(index: DClassFileIndex): FieldValue.Type {
     return when (this) {
         is DClassFile.DClassField.ParameterField -> {
-            parameter.type.toRawFieldValueType()
+            parameter.type.toRawFieldValueType(index)
         }
 
         is DClassFile.DClassField.AtomicField -> {
-            val types = parameters.map { it.type.toRawFieldValueType() }
+            val types = parameters.map { it.type.toRawFieldValueType(index) }
             if (types.isEmpty()) return FieldValue.Type.Empty
             if (types.size == 1) types[0] else FieldValue.Type.Tuple(*types.toTypedArray())
         }
@@ -304,7 +321,7 @@ fun DClassFile.DClassField.toRawFieldValueType(): FieldValue.Type {
     }
 }
 
-fun DClassFile.DClassRawFieldType.toFieldValueType(): FieldValue.Type {
+fun DClassFile.DClassRawFieldType.toFieldValueType(index: DClassFileIndex? = null): FieldValue.Type {
     return when (this) {
         DClassFile.DClassRawFieldType.UInt64 -> FieldValue.Type.UInt64
         DClassFile.DClassRawFieldType.Int64 -> FieldValue.Type.Int64
@@ -322,18 +339,18 @@ fun DClassFile.DClassRawFieldType.toFieldValueType(): FieldValue.Type {
         DClassFile.DClassRawFieldType.Blob -> FieldValue.Type.Blob
         DClassFile.DClassRawFieldType.Char -> FieldValue.Type.Char
         DClassFile.DClassRawFieldType.Float64 -> FieldValue.Type.Float64
-        is DClassFile.DClassRawFieldType.UserType -> FieldValue.Type.Blob
+        is DClassFile.DClassRawFieldType.UserType -> index!!.userTypes[name]!!
     }
 }
 
-fun DClassFile.DClassFieldType.toRawFieldValueType(): FieldValue.Type {
+fun DClassFile.DClassFieldType.toRawFieldValueType(index: DClassFileIndex? = null): FieldValue.Type {
     return when (this) {
-        is DClassFile.DClassFieldType.Array -> FieldValue.Type.Array(type.toRawFieldValueType())
+        is DClassFile.DClassFieldType.Array -> FieldValue.Type.Array(type.toRawFieldValueType(index))
         DClassFile.DClassFieldType.Char -> FieldValue.Type.Char
         is DClassFile.DClassFieldType.Float -> FieldValue.Type.Float64
         is DClassFile.DClassFieldType.Int -> type.toFieldValueType()
         is DClassFile.DClassFieldType.Sized -> type.toFieldValueType()
-        is DClassFile.DClassFieldType.User -> FieldValue.Type.Blob
+        is DClassFile.DClassFieldType.User -> index?.userTypes?.get(type.name) ?: error("missing type for ${type.name}")
     }
 }
 
@@ -346,9 +363,9 @@ val DClassFile.DClassField.modifiers: List<DClassFile.DClassFieldModifier>
         }
     }
 
-fun DClassFile.DClassField.toDistributedFieldSpec(): DistributedFieldSpec {
+fun DClassFile.DClassField.toDistributedFieldSpec(index: DClassFileIndex): DistributedFieldSpec {
     return DistributedFieldSpec(
-        toRawFieldValueType(),
+        toRawFieldValueType(index),
         modifiers.fold(DistributedFieldModifiers()) { acc, mod ->
             when (mod) {
                 is DClassFile.DClassFieldModifier.Required -> acc.copy(required = true)
@@ -397,7 +414,8 @@ fun DClassFile.DClassParameter.FloatParameter.FloatTransform.toType(): String {
     return "${operator}${literal}${next?.toType() ?: ""}"
 }
 
-fun DClassFile.DClassFieldType.Sized.SizeConstraint.toType(): String = if (maxSize != null) "($minSize - $maxSize)" else "($minSize)"
+fun DClassFile.DClassFieldType.Sized.SizeConstraint.toType(): String =
+    if (maxSize != null) "($minSize - $maxSize)" else "($minSize)"
 
 fun String.toDClassFieldType(): DClassFile.DClassRawFieldType {
     return when (this) {

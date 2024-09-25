@@ -7,99 +7,63 @@ import kotlinx.coroutines.launch
 import org.astronkt.*
 import org.astronkt.internal.AstronInternalRepositoryConfig
 
-open class TestClass(doId: DOId) : DistributedObject(doId, 3U.toDClassId()) {
-    var x: Double
-        get() =
-            getField(1U.toFieldId())?.toUInt32()!!.transform {
-                divide(1000f)
-                modulo(360f)
-            }
-        set(value) =
-            setField(
-                1U.toFieldId(),
-                value.unTransform(FieldValue.Type.UInt32) {
-                    divide(1000f)
-                    modulo(360f)
-                },
-            )
-    override val objectFields: Map<FieldId, DistributedField>
-        get() = TODO("Not yet implemented")
-}
+@Suppress("ClassName")
+data class bool(val value: UByte) {
+    companion object : ToFieldValue<bool> {
+        override val type: FieldValue.Type = FieldValue.Type.UInt8
 
-interface TransformScope {
-    fun divide(divisor: Float)
-
-    fun modulo(modulus: Float)
-}
-
-fun Double.unTransform(
-    type: FieldValue.Type,
-    block: TransformScope.() -> Unit,
-): FieldValue {
-    var value = this
-    object : TransformScope {
-        override fun divide(divisor: Float) {
-            value *= divisor
+        override fun fromFieldValue(value: FieldValue): bool {
+            val inner = value.toUInt8()!!
+            return bool(inner)
         }
 
-        override fun modulo(modulus: Float) {
-            value %= modulus
-        }
-    }.block()
-
-    return when (type) {
-        FieldValue.Type.Float64 -> value.toFieldValue()
-        FieldValue.Type.Int8 -> value.toInt().toByte().toFieldValue()
-        FieldValue.Type.Int16 -> value.toInt().toShort().toFieldValue()
-        FieldValue.Type.Int32 -> value.toInt().toFieldValue()
-        FieldValue.Type.Int64 -> value.toLong().toFieldValue()
-        FieldValue.Type.UInt8 -> value.toUInt().toUByte().toFieldValue()
-        FieldValue.Type.UInt16 -> value.toUInt().toUShort().toFieldValue()
-        FieldValue.Type.UInt32 -> value.toUInt().toFieldValue()
-        FieldValue.Type.UInt64 -> value.toULong().toFieldValue()
-        else -> throw Throwable("cannot untransform to $type")
+        override fun bool.toFieldValue(): FieldValue = value.toFieldValue()
     }
 }
 
-fun UByte.transform(block: TransformScope.() -> Unit) = toULong().transform(block)
+data class DoId(val value: UInt) {
+    companion object : ToFieldValue<DoId> {
+        override val type: FieldValue.Type = FieldValue.Type.UInt32
 
-fun UShort.transform(block: TransformScope.() -> Unit) = toULong().transform(block)
-
-fun UInt.transform(block: TransformScope.() -> Unit) = toULong().transform(block)
-
-fun ULong.transform(block: TransformScope.() -> Unit): Double {
-    var value = toDouble()
-    object : TransformScope {
-        override fun divide(divisor: Float) {
-            value /= divisor
+        override fun fromFieldValue(value: FieldValue): DoId {
+            val inner = value.toUInt32()!!
+            return DoId(inner)
         }
 
-        override fun modulo(modulus: Float) {
-            value %= modulus
-        }
-    }.block()
-    return value
+        override fun DoId.toFieldValue(): FieldValue = value.toFieldValue()
+    }
+
 }
 
-fun Byte.transform(block: TransformScope.() -> Unit) = toLong().transform(block)
-
-fun Short.transform(block: TransformScope.() -> Unit) = toLong().transform(block)
-
-fun Int.transform(block: TransformScope.() -> Unit) = toLong().transform(block)
-
-fun Long.transform(block: TransformScope.() -> Unit): Double {
-    var value = toDouble()
-    object : TransformScope {
-        override fun divide(divisor: Float) {
-            value /= divisor
+data class AvatarPendingDel(val Avatar: UInt, val date: UInt) {
+    companion object : ToFieldValue<AvatarPendingDel> {
+        override fun fromFieldValue(value: FieldValue): AvatarPendingDel {
+            val tuple = value.toTuple()!!
+            val Avatar = tuple[0].toUInt32()!!
+            val date = tuple[1].toUInt32()!!
+            return AvatarPendingDel(Avatar, date)
         }
 
-        override fun modulo(modulus: Float) {
-            value %= modulus
-        }
-    }.block()
+        override val type: FieldValue.Type = FieldValue.Type.Tuple(FieldValue.Type.UInt32, FieldValue.Type.UInt32)
 
-    return value
+        override fun AvatarPendingDel.toFieldValue(): FieldValue =
+            FieldValue.TupleValue(Avatar.toFieldValue(), date.toFieldValue())
+    }
+
+
+}
+
+open class TestClass(doId: DOId) : DistributedObjectBase(doId, 3U.toDClassId()) {
+    var x: List<AvatarPendingDel>
+        get() =
+            getField(1U.toFieldId())?.toList()!!.map { AvatarPendingDel.fromFieldValue(it) }
+        set(value) =
+            setField(
+                1U.toFieldId(),
+                with(AvatarPendingDel) { value.toFieldValue() }
+            )
+    override val objectFields: Map<FieldId, DistributedField>
+        get() = TODO("Not yet implemented")
 }
 
 suspend fun main() {

@@ -61,6 +61,12 @@ class ClassSpecRepository(val classes: List<DistributedClassSpec>) {
                         DistributedFieldSpec(type, modifiers = DFieldDsl().apply(block).modifiers)
                     )
                 }
+
+                fun molecular(vararg atoms: FieldValue.Type) {
+                    fields.add(
+                        DistributedFieldSpec(FieldValue.Type.Tuple(*atoms))
+                    )
+                }
             }
 
             class DFieldDsl(internal var modifiers: DistributedFieldModifiers = DistributedFieldModifiers()) {
@@ -68,12 +74,36 @@ class ClassSpecRepository(val classes: List<DistributedClassSpec>) {
                     modifiers = modifiers.copy(required = true)
                 }
 
+                fun ram() {
+                    modifiers = modifiers.copy(ram = true)
+                }
+
+                fun db() {
+                    modifiers = modifiers.copy(db = true)
+                }
+
                 fun broadcast() {
-                    modifiers = modifiers.copy(required = true)
+                    modifiers = modifiers.copy(broadcast = true)
+                }
+
+                fun ownsend() {
+                    modifiers = modifiers.copy(ownsend = true)
+                }
+
+                fun ownrecv() {
+                    modifiers = modifiers.copy(ownrecv = true)
                 }
 
                 fun clsend() {
                     modifiers = modifiers.copy(clsend = true)
+                }
+
+                fun clrecv() {
+                    modifiers = modifiers.copy(clrecv = true)
+                }
+
+                fun airecv() {
+                    modifiers = modifiers.copy(airecv = true)
                 }
             }
 

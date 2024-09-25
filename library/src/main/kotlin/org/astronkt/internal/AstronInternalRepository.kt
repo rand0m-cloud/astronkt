@@ -19,7 +19,7 @@ class AstronInternalRepository(
     val astronInternalNetwork: AstronInternalNetwork,
     val config: AstronInternalRepositoryConfig,
 ) {
-    private val objects: MutableMap<DOId, MutableList<DistributedObject>> = mutableMapOf()
+    private val objects: MutableMap<DOId, MutableList<DistributedObjectBase>> = mutableMapOf()
     val classRepository = ClassRepository()
 
     fun sendFieldUpdate(doId: DOId, fieldId: FieldId, value: FieldValue) {
@@ -55,7 +55,7 @@ class AstronInternalRepository(
                     id.toChannelId().toFieldValue().toBytes()
                 )
             )
-            val doInstance = clazz.primaryConstructor!!.call(id) as DistributedObject
+            val doInstance = clazz.primaryConstructor!!.call(id) as DistributedObjectBase
             addDO(id, doInstance)
         }
 
@@ -91,7 +91,7 @@ class AstronInternalRepository(
         ) { "dclass $dclassId expected ${requiredFieldId.size} but got ${required?.size} required fields" }
 
         val newDOs = classRepository.classesForDClass(dclassId).map {
-            (it.primaryConstructor!!.call(doId) as DistributedObject).apply {
+            (it.primaryConstructor!!.call(doId) as DistributedObjectBase).apply {
                 if (required != null) {
                     requiredFieldId.zip(required).forEach { (id, value) ->
                         setField(id, value)
@@ -122,7 +122,7 @@ class AstronInternalRepository(
 
     fun registerClass(dclassId: DClassId, vararg clazz: KClass<*>) = classRepository.registerClass(dclassId, *clazz)
 
-    private fun addDO(doId: DOId, vararg doObject: DistributedObject) {
+    private fun addDO(doId: DOId, vararg doObject: DistributedObjectBase) {
         objects.getOrPut(doId) { mutableListOf() } += doObject
     }
 }

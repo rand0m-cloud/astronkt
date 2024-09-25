@@ -4,7 +4,7 @@ import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.plus
 
-abstract class DistributedObject(val doId: DOId, val dclassId: DClassId) {
+abstract class DistributedObjectBase(val doId: DOId, val dclassId: DClassId) {
     abstract val objectFields: Map<FieldId, DistributedField>
     val coroutineScope: CoroutineScope =
         (if (isClient) clientRepository.objectsCoroutineScope else internalRepository.objectsCoroutineScope) + CoroutineName(

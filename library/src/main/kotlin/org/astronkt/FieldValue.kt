@@ -115,6 +115,8 @@ sealed class FieldValue {
                 TupleValue(
                     *types.map { it.readValue(buf) }.toTypedArray(),
                 )
+
+            override fun toString(): kotlin.String = "Tuple(${types.toList()})"
         }
 
         class Array(val type: Type) : Type() {
@@ -319,6 +321,36 @@ sealed class FieldValue {
             else -> null
         }
 
+    fun toInt64(): Long? =
+        when (this) {
+            is Int64Value -> value
+            else -> null
+        }
+
+    fun toInt32(): Int? =
+        when (this) {
+            is Int32Value -> value
+            else -> null
+        }
+
+    fun toInt16(): Short? =
+        when (this) {
+            is Int16Value -> value
+            else -> null
+        }
+
+    fun toInt8(): Byte? =
+        when (this) {
+            is Int8Value -> value
+            else -> null
+        }
+
+    fun toChar(): Char? =
+        when (this) {
+            is CharValue -> value.toInt().toChar()
+            else -> null
+        }
+
     fun toStringValue(): String? =
         when (this) {
             is StringValue -> value
@@ -342,29 +374,88 @@ sealed class FieldValue {
             is TupleValue -> value.toList()
             else -> null
         }
+
+    fun toList(): List<FieldValue>? =
+        when (this) {
+            is ArrayValue -> values
+            else -> null
+        }
+
+    fun <T : ToFieldValue<T>> toArray(t: T): List<T>? =
+        when (this) {
+            is ArrayValue -> with(t) { values.map { fromFieldValue(it) } }
+            else -> null
+        }
+
+    fun toArray(t: ULong.Companion): List<ULong>? =
+        when (this) {
+            is ArrayValue -> values.map { toUInt64()!! }
+            else -> null
+        }
+
+    fun toArray(t: UInt.Companion): List<UInt>? =
+        when (this) {
+            is ArrayValue -> values.map { toUInt32()!! }
+            else -> null
+        }
+
+    fun toArray(t: UShort.Companion): List<UShort>? =
+        when (this) {
+            is ArrayValue -> values.map { toUInt16()!! }
+            else -> null
+        }
+
+    fun toArray(t: UByte.Companion): List<UByte>? =
+        when (this) {
+            is ArrayValue -> values.map { toUInt8()!! }
+            else -> null
+        }
+
+    fun toArray(t: Long.Companion): List<Long>? =
+        when (this) {
+            is ArrayValue -> values.map { toInt64()!! }
+            else -> null
+        }
+
+    fun toArray(t: Int.Companion): List<Int>? =
+        when (this) {
+            is ArrayValue -> values.map { toInt32()!! }
+            else -> null
+        }
+
+    fun toArray(t: Short.Companion): List<Short>? =
+        when (this) {
+            is ArrayValue -> values.map { toInt16()!! }
+            else -> null
+        }
+
+    fun toArray(t: Byte.Companion): List<Byte>? =
+        when (this) {
+            is ArrayValue -> values.map { toInt8()!! }
+            else -> null
+        }
+
+    fun toArray(t: String.Companion): List<String>? =
+        when (this) {
+            is ArrayValue -> values.map { toStringValue()!! }
+            else -> null
+        }
 }
 
 fun ULong.toFieldValue(): FieldValue = FieldValue.UInt64Value(this)
-
 fun Long.toFieldValue(): FieldValue = FieldValue.Int64Value(this)
-
 fun UInt.toFieldValue(): FieldValue = FieldValue.UInt32Value(this)
-
 fun Int.toFieldValue(): FieldValue = FieldValue.Int32Value(this)
-
 fun UShort.toFieldValue(): FieldValue = FieldValue.UInt16Value(this)
-
 fun Short.toFieldValue(): FieldValue = FieldValue.Int16Value(this)
-
 fun UByte.toFieldValue(): FieldValue = FieldValue.UInt8Value(this)
-
 fun Byte.toFieldValue(): FieldValue = FieldValue.Int8Value(this)
-
 fun Char.toFieldValue(): FieldValue = FieldValue.UInt8Value(code.toUByte())
-
 fun Double.toFieldValue(): FieldValue = FieldValue.Float64Value(this)
-
 fun String.toFieldValue(): FieldValue = FieldValue.StringValue(this)
+fun ByteArray.toFieldValue(): FieldValue = FieldValue.BlobValue(this)
+fun FieldValue.toFieldValue(): FieldValue = this
+fun List<FieldValue>.toFieldValue(): FieldValue = error("")
 
 fun List<FieldValue>.toBytes(): ByteArray =
     fold(ByteArrayOutputStream(), { out, value ->
@@ -372,3 +463,11 @@ fun List<FieldValue>.toBytes(): ByteArray =
             write(value.toBytes())
         }
     }).toByteArray()
+
+interface ToFieldValue<T> {
+    val type: FieldValue.Type
+    fun fromFieldValue(value: FieldValue): T
+    fun T.toFieldValue(): FieldValue
+    fun List<T>.toFieldValue(): FieldValue = FieldValue.ArrayValue(type, this.map { it.toFieldValue() })
+    fun fromFieldValue(value: List<FieldValue>): List<T> = value.map { fromFieldValue(it) }
+}

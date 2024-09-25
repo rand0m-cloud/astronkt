@@ -17,7 +17,7 @@ class AstronClientRepository(
     val astronClientNetwork: AstronClientNetwork,
     val config: AstronClientRepositoryConfig
 ) {
-    private val objects: MutableMap<DOId, MutableList<DistributedObject>> = mutableMapOf()
+    private val objects: MutableMap<DOId, MutableList<DistributedObjectBase>> = mutableMapOf()
     private val objectsDClass: MutableMap<DOId, DClassId> = mutableMapOf()
     val classRepository = ClassRepository()
 
@@ -33,7 +33,7 @@ class AstronClientRepository(
         )
 
         classRepository.uberDogClients().forEach { (id, clazz) ->
-            val doInstance = clazz.primaryConstructor!!.call(id) as DistributedObject
+            val doInstance = clazz.primaryConstructor!!.call(id) as DistributedObjectBase
             addDO(id, doInstance)
         }
 
@@ -78,7 +78,7 @@ class AstronClientRepository(
             addDO(
                 doId,
                 *classRepository.classesForDClass(dclassId).map {
-                    val doObject: DistributedObject = it.primaryConstructor?.call(doId) as DistributedObject
+                    val doObject: DistributedObjectBase = it.primaryConstructor?.call(doId) as DistributedObjectBase
                     for ((fieldId, value) in fields) {
                         doObject.setField(fieldId, value, fromNetwork = true)
                     }
@@ -92,7 +92,7 @@ class AstronClientRepository(
         }
     }
 
-    private fun addDO(doId: DOId, vararg doObject: DistributedObject) {
+    private fun addDO(doId: DOId, vararg doObject: DistributedObjectBase) {
         objects.getOrPut(doId) { mutableListOf() } += doObject
         objectsDClass[doId] = doObject[0].dclassId
     }
