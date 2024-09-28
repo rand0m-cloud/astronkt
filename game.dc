@@ -33,7 +33,7 @@ typedef uint8 bool;
 
 typedef uint32 DoId;
 
-typedef DoId DoIdList[];
+typedef DoId[] DoIdList;
 
 struct AvatarPendingDel {
   uint32 Avatar;
@@ -1156,8 +1156,8 @@ dclass DistributedToon : DistributedPlayer {
   setPartyStatus(uint64, uint8) ownrecv airecv;
   announcePartyStarted(uint64) ownrecv;
   setNeverStartedPartyRefunded(uint64, int8, uint16) ownrecv;
-  setDISLname(string) ram;
-  setDISLid(uint32) ram db airecv;
+  setDISLname2(string) ram;
+  setDISLid2(uint32) ram db airecv;
   toggleSleep() ownrecv;
 };
 
@@ -1793,15 +1793,15 @@ dclass DistributedPartyActivity : DistributedObject {
   toonReady() airecv clsend;
   joinRequestDenied(uint8);
   exitRequestDenied(uint8);
-  setToonsPlaying(uint32 []) broadcast ram;
-  setState(string, int16) broadcast ram;
+  setToonsPlayingBase(uint32 []) broadcast ram;
+  setStateBase(string, int16) broadcast ram;
   showJellybeanReward(uint32, uint8, string);
 };
 
 dclass DistributedPartyTeamActivity : DistributedPartyActivity {
-  toonJoinRequest(uint8(0-1)) airecv clsend;
-  toonExitRequest(uint8(0-1)) airecv clsend;
-  toonSwitchTeamRequest() airecv clsend;
+  toonJoinRequest2(uint8(0-1)) airecv clsend;
+  toonExitRequest2(uint8(0-1)) airecv clsend;
+  toonSwitchTeamRequest2() airecv clsend;
   setPlayersPerTeam(uint8, uint8) broadcast required;
   setDuration(uint8) broadcast required;
   setCanSwitchTeams(bool) broadcast required;
@@ -1937,7 +1937,7 @@ dclass DistributedPartyWinterTrampolineActivity : DistributedPartyTrampolineActi
 dclass DistributedPartyTugOfWarActivity : DistributedPartyTeamActivity {
   reportKeyRateForce(uint32, int16/100) airecv clsend;
   reportFallIn(uint8) airecv clsend;
-  setToonsPlaying(uint32 [0-4], uint32 [0-4]) required broadcast ram;
+  setToonsPlaying2(uint32 [0-4], uint32 [0-4]) required broadcast ram;
   updateToonKeyRate(uint32, uint32) broadcast;
   updateToonPositions(int16/1000) broadcast;
 };
@@ -2400,32 +2400,32 @@ dclass DistributedNPCScientist : DistributedNPCToonBase {
 };
 
 dclass DistributedNPCClerk : DistributedNPCToonBase {
-  setMovie(uint8, uint32, uint32, int16) broadcast ram;
+  setMovie2(uint8, uint32, uint32, int16) broadcast ram;
   setInventory(blob, int16, uint8) airecv clsend;
 };
 
 dclass DistributedNPCTailor : DistributedNPCToonBase {
-  setMovie(uint8, uint32, uint32, int16) broadcast ram;
+  setMovie2(uint8, uint32, uint32, int16) broadcast ram;
   setDNA(blob, int8, uint8) airecv clsend;
   setCustomerDNA(uint32, blob) broadcast ram;
 };
 
 dclass DistributedNPCBlocker : DistributedNPCToonBase {
-  setMovie(uint8, uint32, uint32, int16) broadcast ram;
+  setMovie2(uint8, uint32, uint32, int16) broadcast ram;
 };
 
 dclass DistributedNPCFisherman : DistributedNPCToonBase {
-  setMovie(uint8, uint32, uint32, uint32[], int16) broadcast ram;
+  setMovie2(uint8, uint32, uint32, uint32[], int16) broadcast ram;
   completeSale(uint8) airecv clsend;
 };
 
 dclass DistributedNPCPartyPerson : DistributedNPCToonBase {
-  setMovie(uint8, uint32, uint32, uint32[], int16) broadcast ram;
+  setMovie2(uint8, uint32, uint32, uint32[], int16) broadcast ram;
   answer(uint8) airecv clsend;
 };
 
 dclass DistributedNPCPetclerk : DistributedNPCToonBase {
-  setMovie(uint8, uint32, uint32, uint32[], int16) broadcast ram;
+  setMovie2(uint8, uint32, uint32, uint32[], int16) broadcast ram;
   setPetSeeds(uint32[]);
   petAdopted(uint8, uint32) airecv clsend;
   petReturned() airecv clsend;
@@ -2434,7 +2434,7 @@ dclass DistributedNPCPetclerk : DistributedNPCToonBase {
 };
 
 dclass DistributedNPCKartClerk : DistributedNPCToonBase {
-  setMovie(uint8, uint32, uint32, uint32[], int16) broadcast ram;
+  setMovie2(uint8, uint32, uint32, uint32[], int16) broadcast ram;
   buyKart(uint8) airecv clsend;
   buyAccessory(uint8) airecv clsend;
   transactionDone() airecv clsend;
@@ -2685,10 +2685,10 @@ dclass DistributedCloset : DistributedFurnitureItem {
 };
 
 dclass DistributedTrunk : DistributedCloset {
-  setState(uint8, uint32, uint32, string, uint8[], uint8[], uint8[], uint8[]) broadcast ram;
-  removeItem(uint8, uint8, uint8, uint8) airecv clsend;
-  setDNA(uint8, uint8, uint8, uint8, uint8, uint8, uint8, uint8, uint8, uint8, uint8, uint8, int8, uint8) airecv clsend;
-  setCustomerDNA(uint32, uint8, uint8, uint8, uint8, uint8, uint8, uint8, uint8, uint8, uint8, uint8, uint8, uint8) broadcast ram;
+  setState2(uint8, uint32, uint32, string, uint8[], uint8[], uint8[], uint8[]) broadcast ram;
+  removeItem2(uint8, uint8, uint8, uint8) airecv clsend;
+  setDNA2(uint8, uint8, uint8, uint8, uint8, uint8, uint8, uint8, uint8, uint8, uint8, uint8, int8, uint8) airecv clsend;
+  setCustomerDNA2(uint32, uint8, uint8, uint8, uint8, uint8, uint8, uint8, uint8, uint8, uint8, uint8, uint8, uint8) broadcast ram;
 };
 
 dclass DistributedPhone : DistributedFurnitureItem {
@@ -3250,7 +3250,7 @@ dclass DistributedAnimatedStatuary : DistributedStatuary {
 };
 
 dclass DistributedChangingStatuary : DistributedStatuary {
-  setGrowthLevel(int8) required broadcast ram;
+  setGrowthLevel2(int8) required broadcast ram;
 };
 
 dclass DistributedPlantBase : DistributedLawnDecor {
@@ -3262,7 +3262,7 @@ dclass DistributedPlantBase : DistributedLawnDecor {
 };
 
 dclass DistributedFlower : DistributedPlantBase {
-  setTypeIndex(uint8) required broadcast ram;
+  setTypeIndex2(uint8) required broadcast ram;
   setVariety(uint8) required broadcast ram;
 };
 

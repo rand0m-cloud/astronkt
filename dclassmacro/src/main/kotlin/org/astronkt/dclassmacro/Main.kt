@@ -5,13 +5,21 @@ import java.io.File
 
 fun main(args: Array<String>) {
     val inputFile = File(args.firstOrNull() ?: "../game.dc")
+    val outputDir = File(args.getOrNull(2) ?: "../clientapp/src/main/kotlin/GameSpec").apply {
+        if (!exists()) {
+            mkdirs()
+        } else {
+            deleteRecursively()
+            mkdirs()
+        }
+    }
     val fileSrc = inputFile.readText()
 
     // debugTokens(fileSrc)
     val file = DClassFileParser.parseToEnd(fileSrc)
 
     // file.printDebug()
-    println(generateDClassHelper(file))
+    generateDClassHelper(file, outputDir)
 }
 
 fun DClassFile.printDebug() {

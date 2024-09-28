@@ -121,11 +121,25 @@ sealed class FieldValue {
 
         class Array(val type: Type) : Type() {
             fun read(buf: ByteBuffer): List<FieldValue> {
-                val len = buf.getShort()
+                val n = buf.getShort()
                 val list = mutableListOf<FieldValue>()
-                for (i in 0..<len) {
-                    list += type.readValue(buf)
+
+                if (type.compositeType()) {
+                    val bytes = n
+                    val data = ByteArray(bytes.toInt()).also { buf.get(it) }
+                    val dataBuf = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
+
+                    while (dataBuf.hasRemaining()) {
+                        list += type.readValue(dataBuf)
+                    }
+                } else {
+                    for (i in 0..<n) {
+                        list += type.readValue(buf)
+                    }
+
                 }
+
+
                 return list
             }
 
@@ -146,6 +160,11 @@ sealed class FieldValue {
 
         data object Empty : Type() {
             override fun readValue(buf: ByteBuffer): FieldValue = EmptyValue
+        }
+
+        fun compositeType(): Boolean = when (this) {
+            is Tuple -> true
+            else -> false
         }
     }
 

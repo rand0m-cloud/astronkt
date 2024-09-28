@@ -261,20 +261,27 @@ sealed interface DClassFileIndex {
         return getFieldId(dClassName, localFieldIndex.toUShort())
     }
 
-    fun getDClassFields(dClassName: String): List<DClassFile.DClassField> {
+    fun getDClassFields(dClassName: String): List<Pair<FieldId, DClassFile.DClassField>> {
         val dClass = getDClass(dClassName)
-        return dClass.parents.flatMap { getDClassFields(it) }.plus(dClass.fields).toList()
+        val dClassId = getDClassId(dClassName)
+        return dClass.parents.flatMap { getDClassFields(it) }
+            .plus(dClass.fields.mapIndexed { index, field ->
+                (getFieldId(
+                    dClassName,
+                    index.toUShort()
+                ) to field)
+            }).associate { it }.toList().sortedBy { it.first.id }
     }
 
-    fun DClassFile.DClassField.parameters(dClassName: String): List<DClassFile.DClassParameter> {
-        val fieldId = getFieldId(dClassName, name!!)
+    fun DClassFile.DClassField.parameters(dClassName: String, fieldId: FieldId): List<DClassFile.DClassParameter> {
         val allFields = getDClassFields(dClassName)
         return when (this) {
             is DClassFile.DClassField.AtomicField -> parameters
             is DClassFile.DClassField.MolecularField ->
                 fields.flatMap { name ->
-                    allFields.find { it.name == name }!!.parameters(dClassName)
+                    allFields.find { it.second.name == name }!!.second.parameters(dClassName, fieldId)
                 }
+
             is DClassFile.DClassField.ParameterField -> listOf(parameter)
         }
     }
@@ -349,10 +356,10 @@ fun DClassFile.DClassField.toRawFieldValueType(
         }
 
         is DClassFile.DClassField.MolecularField -> {
-            val classFields = index.getDClassFields(parentClass!!).associateBy { it.name }
+            val classFields = index.getDClassFields(parentClass!!).associateBy { it.second.name }
             return FieldValue.Type.Tuple(
                 *fields.map {
-                    classFields[it]!!.toRawFieldValueType(index)
+                    classFields[it]!!.second.toRawFieldValueType(index)
                 }.toTypedArray(),
             )
         }
@@ -403,10 +410,12 @@ val DClassFile.DClassField.modifiers: List<DClassFile.DClassFieldModifier>
 
 fun DClassFile.DClassField.toDistributedFieldSpec(
     index: DClassFileIndex,
+    fieldId: FieldId,
     parentClass: String,
 ): DistributedFieldSpec {
     return DistributedFieldSpec(
         toRawFieldValueType(index, parentClass),
+        name ?: "field${fieldId.id}",
         modifiers.fold(DistributedFieldModifiers()) { acc, mod ->
             when (mod) {
                 is DClassFile.DClassFieldModifier.Required -> acc.copy(required = true)
@@ -455,7 +464,8 @@ fun DClassFile.DClassParameter.FloatParameter.FloatTransform.toType(): String {
     return "${operator}${literal}${next?.toType() ?: ""}"
 }
 
-fun DClassFile.DClassFieldType.Sized.SizeConstraint.toType(): String = if (maxSize != null) "($minSize - $maxSize)" else "($minSize)"
+fun DClassFile.DClassFieldType.Sized.SizeConstraint.toType(): String =
+    if (maxSize != null) "($minSize - $maxSize)" else "($minSize)"
 
 fun String.toDClassFieldType(): DClassFile.DClassRawFieldType {
     return when (this) {

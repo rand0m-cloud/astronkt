@@ -14,6 +14,7 @@ data class DistributedFieldModifiers(
 
 data class DistributedFieldSpec(
     val type: FieldValue.Type,
+    val name: String,
     val modifiers: DistributedFieldModifiers = DistributedFieldModifiers(),
     val default: FieldValue? = null,
 )
@@ -35,17 +36,22 @@ fun UInt.toFieldId() = toUShort().toFieldId()
 fun FieldId.toFieldValue() = id.toFieldValue()
 
 sealed class DistributedSpec {
+    abstract val name: String
     abstract val fields: List<DistributedFieldSpec>
     abstract val isDClass: Boolean
 
     data class DistributedClassSpec(
         override val fields: List<DistributedFieldSpec>,
-        val extends: List<DistributedClassSpec>?,
+        val extends: List<String>?,
+        override val name: String,
     ) : DistributedSpec() {
         override val isDClass: Boolean = true
     }
 
-    data class DistributedStructSpec(override val fields: List<DistributedFieldSpec>) : DistributedSpec() {
+    data class DistributedStructSpec(
+        override val fields: List<DistributedFieldSpec>,
+        override val name: String,
+    ) : DistributedSpec() {
         override val isDClass: Boolean = false
     }
 }
@@ -54,11 +60,13 @@ class ClassSpecRepository(val classes: List<DistributedSpec>) {
     val byFieldId: Map<FieldId, DistributedFieldSpec> =
         classes.flatMap { it.fields }.withIndex().associate { it.index.toUShort().toFieldId() to it.value }
 
-    val byDClassId: Map<DClassId, List<FieldId>> =
-        mutableMapOf<DClassId, List<FieldId>>().also {
+    val byDClassId: Map<DClassId, Pair<DistributedSpec.DistributedClassSpec, List<FieldId>>> =
+        mutableMapOf<DClassId, Pair<DistributedSpec.DistributedClassSpec, List<FieldId>>>().also {
             var dClassId = 0U.toUShort()
             var fieldId = 0U.toUShort()
+
             for (clazz in classes) {
+                val name = clazz.name
                 val fields =
                     clazz.fields.map {
                         fieldId.toFieldId().also {
@@ -66,32 +74,36 @@ class ClassSpecRepository(val classes: List<DistributedSpec>) {
                         }
                     }
 
-                if (!clazz.isDClass) continue
-
-                it.put(
-                    dClassId.toDClassId(),
-                    fields,
-                )
+                when (clazz) {
+                    is DistributedSpec.DistributedClassSpec -> it[dClassId.toDClassId()] = clazz to fields
+                    else -> {}
+                }
 
                 dClassId++
+
             }
         }
+
+    val byDClassName: Map<String, DClassId> = byDClassId.entries.associate { (dClass, value) ->
+        value.first.name to dClass
+    }
 
     companion object {
         class Builder(val classes: MutableList<DistributedSpec> = mutableListOf()) {
             class DClassDsl(internal val fields: MutableList<DistributedFieldSpec> = mutableListOf()) {
                 fun field(
+                    name: String,
                     type: FieldValue.Type,
                     block: DFieldDsl.() -> Unit = {},
                 ) {
                     fields.add(
-                        DistributedFieldSpec(type, modifiers = DFieldDsl().apply(block).modifiers),
+                        DistributedFieldSpec(type, name, modifiers = DFieldDsl().apply(block).modifiers),
                     )
                 }
 
-                fun molecular(vararg atoms: FieldValue.Type) {
+                fun molecular(name: String, vararg atoms: FieldValue.Type) {
                     fields.add(
-                        DistributedFieldSpec(FieldValue.Type.Tuple(*atoms)),
+                        DistributedFieldSpec(FieldValue.Type.Tuple(*atoms), name),
                     )
                 }
             }
@@ -135,34 +147,42 @@ class ClassSpecRepository(val classes: List<DistributedSpec>) {
             }
 
             fun dclass(
-                extends: List<DistributedSpec.DistributedClassSpec>? = null,
+                name: String,
+                extends: List<String>? = null,
                 block: DClassDsl.() -> Unit,
             ) {
                 classes.add(
                     DistributedSpec.DistributedClassSpec(
                         DClassDsl().apply(block).fields,
                         extends,
+                        name
                     ),
                 )
             }
 
             class StructDsl(internal val fields: MutableList<DistributedFieldSpec> = mutableListOf()) {
-                fun field(type: FieldValue.Type) {
-                    fields.add(DistributedFieldSpec(type))
+                fun field(name: String, type: FieldValue.Type) {
+                    fields.add(DistributedFieldSpec(type, name))
                 }
             }
 
-            fun struct(block: StructDsl.() -> Unit) {
-                classes.add(DistributedSpec.DistributedStructSpec(StructDsl().apply(block).fields))
+            fun struct(name: String, block: StructDsl.() -> Unit) {
+                classes.add(DistributedSpec.DistributedStructSpec(StructDsl().apply(block).fields, name))
             }
         }
 
         fun build(block: Builder.() -> Unit): ClassSpecRepository = ClassSpecRepository(Builder().apply(block).classes)
     }
 
-    fun getRequiredFieldIds(dClass: DClassId): List<FieldId> =
-        byDClassId[dClass]!!
-            .filter {
+    fun getRequiredFieldIds(dClass: DClassId): List<FieldId> {
+        val selfFields = byDClassId[dClass]!!
+            .second.filter {
                 byFieldId[it]!!.modifiers.required
             }
+        val parents = byDClassId[dClass]!!.first.extends ?: listOf()
+        val fields = parents.flatMap {
+            getRequiredFieldIds(byDClassName[it]!!)
+        } + selfFields
+        return fields.sortedBy { it.id }
+    }
 }

@@ -34,7 +34,7 @@ class AstronClientRepository(
 
         classRepository.uberDogClients().forEach { (id, clazz) ->
             val doInstance = clazz.primaryConstructor!!.call(id) as DistributedObjectBase
-            addDO(id, doInstance)
+            addDO(id, doInstance.dclassId, doInstance)
         }
 
         // client heartbeat coroutine
@@ -56,45 +56,90 @@ class AstronClientRepository(
 
     private fun recieveMessage(message: AstronClientMessage) {
         val buf = ByteBuffer.wrap(message.msgData).order(ByteOrder.LITTLE_ENDIAN)
-        if (message.msgType == 120U.toUShort()) {
-            //set field
-            val doId = FieldValue.Type.UInt32.read(buf).toDOId()
-            val fieldId = FieldValue.Type.UInt16.read(buf).toFieldId()
-            val fieldSpec = classSpecRepository.byFieldId[fieldId]
-                ?: throw IllegalStateException("don't have a field id spec for $fieldId")
-            val value = fieldSpec.type.readValue(buf)
+        when (message.msgType) {
+            120U.toUShort() -> {
+                //set field
+                val doId = FieldValue.Type.UInt32.read(buf).toDOId()
+                val fieldId = FieldValue.Type.UInt16.read(buf).toFieldId()
+                val fieldSpec = classSpecRepository.byFieldId[fieldId]
+                    ?: throw IllegalStateException("don't have a field id spec for $fieldId")
+                val value = fieldSpec.type.readValue(buf)
 
-            receiveFieldUpdate(doId, fieldId, value)
-        } else if (message.msgType == 142U.toUShort()) {
-            //enter object
-            val doId = FieldValue.Type.UInt32.read(buf).toDOId()
-            val parentId = FieldValue.Type.UInt32.read(buf)
-            val zoneId = FieldValue.Type.UInt32.read(buf).toZoneId()
-            val dclassId = FieldValue.Type.UInt16.read(buf).toDClassId()
-            val fields = classSpecRepository.getRequiredFieldIds(dclassId).map {
-                it to classSpecRepository.byFieldId[it]!!.type.readValue(buf)
+                receiveFieldUpdate(doId, fieldId, value)
             }
 
-            addDO(
-                doId,
-                *classRepository.classesForDClass(dclassId).map {
-                    val doObject: DistributedObjectBase = it.primaryConstructor?.call(doId) as DistributedObjectBase
-                    for ((fieldId, value) in fields) {
-                        doObject.setField(fieldId, value, fromNetwork = true)
+            142U.toUShort() -> {
+                //enter object
+                val doId = FieldValue.Type.UInt32.read(buf).toDOId()
+                val parentId = FieldValue.Type.UInt32.read(buf)
+                val zoneId = FieldValue.Type.UInt32.read(buf).toZoneId()
+                val dclassId = FieldValue.Type.UInt16.read(buf).toDClassId()
+                val fields = classSpecRepository.getRequiredFieldIds(dclassId).map {
+                    it to classSpecRepository.byFieldId[it]!!.type.readValue(buf)
+                }
+
+                val dClassName by lazy { classSpecRepository.byDClassId[dclassId] }
+                addDO(
+                    doId,
+                    dclassId,
+                    *classRepository.classesForDClass(dclassId).map {
+                        val doObject: DistributedObjectBase = it.primaryConstructor?.call(doId) as DistributedObjectBase
+                        for ((fieldId, value) in fields) {
+                            println("(${doId.id}) setting field: ${classSpecRepository.byFieldId[fieldId]!!.name} to $value")
+                            doObject.setField(fieldId, value, fromNetwork = true)
+                        }
+                        doObject
+                    }.toTypedArray()
+                )
+            }
+
+            173U.toUShort() -> {
+                //enter object other w/ownership
+                val doId = FieldValue.Type.UInt32.read(buf).toDOId()
+                val parentId = FieldValue.Type.UInt32.read(buf)
+                val zoneId = FieldValue.Type.UInt32.read(buf).toZoneId()
+                val dclassId = FieldValue.Type.UInt16.read(buf).toDClassId()
+                val fields = classSpecRepository.getRequiredFieldIds(dclassId).map {
+                    it to classSpecRepository.byFieldId[it]!!.type.readValue(buf).also { value ->
+                        Unit
                     }
-                    doObject
-                }.toTypedArray()
-            )
-        } else if (message.msgType == 204U.toUShort()) {
-            //add interest resp
-            FieldValue.Type.UInt32.read(buf)
-            activeInterests.add(FieldValue.Type.UInt16.read(buf).toInterestId())
+                }
+
+                val otherFields = mutableListOf<Pair<FieldId, FieldValue>>()
+                while (buf.hasRemaining()) {
+                    val fieldId = FieldValue.Type.UInt16.read(buf).toFieldId()
+                    val fieldValue = classSpecRepository.byFieldId[fieldId]!!.type.readValue(buf)
+                    otherFields += fieldId to fieldValue
+                }
+
+                val dClassName by lazy { classSpecRepository.byDClassId[dclassId] }
+                addDO(
+                    doId,
+                    dclassId,
+                    *classRepository.classesForDClass(dclassId).map {
+                        val doObject: DistributedObjectBase = it.primaryConstructor?.call(doId) as DistributedObjectBase
+                        for ((fieldId, value) in fields + otherFields) {
+                            println("(${doId.id}) setting field: ${classSpecRepository.byFieldId[fieldId]!!.name} to $value")
+                            doObject.setField(fieldId, value, fromNetwork = true)
+                        }
+                        doObject
+                    }.toTypedArray()
+                )
+            }
+
+            204U.toUShort() -> {
+                //add interest resp
+                FieldValue.Type.UInt32.read(buf)
+                activeInterests.add(FieldValue.Type.UInt16.read(buf).toInterestId())
+            }
         }
     }
 
-    private fun addDO(doId: DOId, vararg doObject: DistributedObjectBase) {
+    private fun addDO(doId: DOId, dClassId: DClassId, vararg doObject: DistributedObjectBase) {
+        if (doObject.isEmpty()) println("No classes registered for (${dClassId.id}) ${classSpecRepository.byDClassId[dClassId]}")
+
         objects.getOrPut(doId) { mutableListOf() } += doObject
-        objectsDClass[doId] = doObject[0].dclassId
+        objectsDClass[doId] = dClassId
     }
 
     fun registerClass(dclassId: DClassId, vararg clazz: KClass<*>) = classRepository.registerClass(dclassId, *clazz)
@@ -110,6 +155,9 @@ class AstronClientRepository(
 
     fun receiveFieldUpdate(doId: DOId, fieldId: FieldId, value: FieldValue) {
         val classes = objects[doId] ?: return
+
+        println("(${doId.id}) setting field: ${classSpecRepository.byFieldId[fieldId]!!.name} to $value")
+
         classes.forEach {
             it.setField(fieldId, value, true)
         }

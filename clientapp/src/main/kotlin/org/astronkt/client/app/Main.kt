@@ -1,11 +1,17 @@
 package org.astronkt.client.app
 
-import AstronLoginManager
-import classSpecRepository
+//import GameSpec.AstronLoginManager
+//import GameSpec.ToontownDistrict
+//import GameSpec.classSpecRepository
+import GameSpec.AstronLoginManager
+import GameSpec.PotentialAvatar
+import GameSpec.ToontownDistrict
+import GameSpec.classSpecRepository
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 import org.astronkt.*
 import org.astronkt.client.AstronClientRepositoryConfig
+import org.astronkt.client.sendInterestRequest
 
 @DClassClientUberDOG(4670U)
 class AstronLoginManagerClient(doId: DOId) : AstronLoginManager(doId) {
@@ -18,7 +24,24 @@ class AstronLoginManagerClient(doId: DOId) : AstronLoginManager(doId) {
         sender: ChannelId?,
     ) {
         println("arg0: ${arg0.decodeToString()}, sender: $sender")
-        this.requestPlayAvatar(1000000001U)
+        clientRepository.sendInterestRequest(1U.toInterestId(), 4618U.toDOId(), 2U.toZoneId())
+        clientRepository.sendInterestRequest(2U.toInterestId(), 4618U.toDOId(), 3U.toZoneId())
+        clientRepository.sendInterestRequest(3U.toInterestId(), 4618U.toDOId(), 4U.toZoneId())
+        clientRepository.sendInterestRequest(4U.toInterestId(), 4618U.toDOId(), 5U.toZoneId())
+
+        requestAvatarList()
+    }
+
+    override fun onAvatarListResponse(arg0: List<PotentialAvatar>, sender: ChannelId?) {
+        println(arg0)
+        requestPlayAvatar(arg0[2].avNum)
+    }
+}
+
+@DClassClient
+class ToontownDistrictClient(doId: DOId) : ToontownDistrict(doId) {
+    override fun onSetName(arg0: String, sender: ChannelId?) {
+        println("district named: $arg0")
     }
 }
 
@@ -31,6 +54,7 @@ suspend fun main() {
     )
 
     clientRepository.registerClass(AstronLoginManager.dClassId, AstronLoginManagerClient::class)
+    clientRepository.registerClass(ToontownDistrict.dClassId, ToontownDistrictClient::class)
 
     MainScope().launch {
         clientRepository.astronClientNetwork.networkMessages.collect {

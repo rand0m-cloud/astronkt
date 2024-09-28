@@ -1,40 +1,66 @@
 package org.astronkt.dclassmacro
 
 import org.astronkt.DistributedFieldModifiers
+import org.astronkt.FieldId
 import org.astronkt.FieldValue
-import org.astronkt.ProtocolMessageArgumentSpec.Dynamic.type
+import org.astronkt.toFieldId
+import java.io.File
 
-fun generateDClassHelper(dClassFile: DClassFile): String =
-    buildString {
-        val index = dClassFile.buildIndex()
+fun generateDClassHelper(dClassFile: DClassFile, directory: File) {
+    assert(directory.isDirectory)
 
+    val index = dClassFile.buildIndex()
+
+
+    val classSpec = File(directory.path + "/ClassSpec.kt")
+    classSpec.writeText(buildString {
         append("@file:Suppress(\"unused\", \"NestedLambdaShadowedImplicitParameter\", \"TrailingComma\")\n\n")
 
-        append("import org.astronkt.*\n\n")
+        append("package GameSpec\n\n")
 
-        for (decl in dClassFile.decls) {
+        append("import org.astronkt.*\n")
+
+        generateClassSpec(index, dClassFile)
+    })
+
+    for (decl in dClassFile.decls) {
+        val name = when (decl) {
+            is DClassFile.TypeDecl.DClass -> decl.name
+            is DClassFile.TypeDecl.Struct -> decl.name
+            is DClassFile.TypeDecl.TypeDef -> decl.newTypeName
+        }
+
+        val classFile = File(directory.path + "/$name.kt")
+
+        classFile.writeText(buildString {
+            append("@file:Suppress(\"unused\", \"NestedLambdaShadowedImplicitParameter\", \"TrailingComma\")\n\n")
+
+            append("package GameSpec\n\n")
+
+            append("import org.astronkt.*\n")
+            //append("import GameSpec.*\n\n")
+
             when (decl) {
                 is DClassFile.TypeDecl.Struct -> generateStruct(index, decl)
                 is DClassFile.TypeDecl.TypeDef -> generateTypeDef(index, decl)
-                else -> {}
+                is DClassFile.TypeDecl.DClass -> {
+                    val dClassName = decl.name
+                    val (dClassId, dClass) = index.byDClassName[dClassName]!!
+                    val id = dClassId.id
+                    append("open class $dClassName(doId: DOId): DistributedObjectBase(doId, ${id}U.toDClassId()) {\n")
+
+                    generatePreamble(index, dClassName, id, dClass)
+                    generateFieldSpecs(index, dClass)
+                    generateFields(index, dClassName, dClass)
+                    generateEventSetters(index, dClass)
+
+                    append("}\n\n")
+                }
             }
             append("\n")
-        }
-        for (dClassName in index.dClasses) {
-            val (dClassId, dClass) = index.byDClassName[dClassName]!!
-            val id = dClassId.id
-            append("open class $dClassName(doId: DOId): DistributedObjectBase(doId, ${id}U.toDClassId()) {\n")
-
-            generatePreamble(index, dClassName, id, dClass)
-            generateFieldSpecs(index, dClass)
-            generateFields(index, dClassName, dClass)
-            generateEventSetters(index, dClass)
-
-            append("}\n\n")
-        }
-
-        generateClassSpec(index, dClassFile)
+        })
     }
+}
 
 fun StringBuilder.generatePreamble(
     index: DClassFileIndex,
@@ -45,10 +71,9 @@ fun StringBuilder.generatePreamble(
     append("\tcompanion object {\n")
     append("\t\tval dClassId = ${id}U.toDClassId()\n\n")
     append("\t\tobject Fields {\n")
-    for ((localFieldIndex, field) in dClass.fields.withIndex()) {
-        val fieldId = index.getFieldId(dClassName, localFieldIndex.toUShort()).id
-        val name = field.name ?: "field$fieldId"
-        append("\t\t\tval ${field.name}: FieldId = ${fieldId}U.toFieldId()\n")
+    for ((fieldId, field) in index.getDClassFields(dClassName)) {
+        val name = field.name ?: "field${fieldId.id}"
+        append("\t\t\tval ${field.name}: FieldId = ${fieldId.id}U.toFieldId()\n")
     }
     append("\t\t}\n")
     append("\t}\n")
@@ -59,14 +84,15 @@ fun StringBuilder.generateFieldSpecs(
     dClass: DClassFile.TypeDecl.DClass,
 ) {
     append("\toverride val objectFields: Map<FieldId, DistributedField> = mapOf(\n")
-    for ((localIndex, field) in dClass.fields.withIndex()) {
-        val fieldId = index.getFieldId(dClass.name, localIndex.toUShort()).id
-        val fieldName = field.name ?: "field$fieldId"
-        val spec = field.toDistributedFieldSpec(index, dClass.name)
+    for ((localIndex, tuple) in index.getDClassFields(dClass.name).withIndex()) {
+        val (fieldId, field) = tuple
+        val fieldName = field.name ?: "field${fieldId.id}"
+        val spec = field.toDistributedFieldSpec(index, fieldId, dClass.name)
         val isField = field is DClassFile.DClassField.ParameterField
-        append("\t\t${fieldId}U.toFieldId() to DistributedField(\n")
+        append("\t\t${fieldId.id}U.toFieldId() to DistributedField(\n")
         append("\t\t\tDistributedFieldSpec(\n")
         append("\t\t\t\t${spec.type.toTypeCode()},\n")
+        append("\t\t\t\t\"$fieldName\",\n")
         append("\t\t\t\tmodifiers = DistributedFieldModifiers(\n")
 
         val printModifier = { name: String -> append("\t\t\t\t\t$name = true,\n") }
@@ -90,7 +116,7 @@ fun StringBuilder.generateFieldSpecs(
                     .toOnSetCode(
                         index,
                         dClass.name,
-                        localIndex,
+                        fieldId,
                         "\t\t\t\t",
                     )
             }\n",
@@ -173,9 +199,10 @@ fun StringBuilder.generateFields(
                 val name = field.name
                 val fieldMap = index.getDClassFields(dClassName)
                 val atoms =
-                    field.fields.map { atomName -> fieldMap.find { it.name == atomName }!! }.flatMap { atom ->
-                        with(index) { atom.parameters(dClassName) }
-                    }
+                    field.fields.map { atomName -> fieldMap.find { it.second.name == atomName }!!.second }
+                        .flatMap { atom ->
+                            with(index) { atom.parameters(dClassName, id.toFieldId()) }
+                        }
 
                 append("\tfun $name(")
                 for ((localIndex, atom) in atoms.withIndex()) {
@@ -210,18 +237,19 @@ private fun StringBuilder.generateEventSetters(
     index: DClassFileIndex,
     dClass: DClassFile.TypeDecl.DClass,
 ) {
-    for ((id, field)in dClass.fields.withIndex()) {
-        val fieldId = index.getFieldId(dClass.name, id.toUShort())
+    for ((fieldId, field) in index.getDClassFields(dClass.name)) {
         val fieldName = (field.name ?: "field${fieldId.id}").replaceFirstChar { it.uppercase() }
-        val parameters = with(index) { field.parameters(dClass.name) }
+        val parameters = with(index) { field.parameters(dClass.name, fieldId) }
 
         when (field) {
             is DClassFile.DClassField.ParameterField -> {
                 append("\topen fun onSet$fieldName(")
             }
+
             is DClassFile.DClassField.AtomicField -> {
                 append("\topen fun on$fieldName(")
             }
+
             is DClassFile.DClassField.MolecularField -> {
                 append("\topen fun on$fieldName(")
             }
@@ -245,11 +273,12 @@ private fun StringBuilder.generateClassSpec(
             is DClassFile.TypeDecl.DClass -> {
                 val dClass = decl
 
-                append("\t// ${dClass.name}\n")
-                append("\tdclass {\n")
-                for (field in dClass.fields) {
-                    append("\t\tfield(${field.toRawFieldValueType(index, dClass.name).toTypeCode()})")
-                    val spec = field.toDistributedFieldSpec(index, dClass.name)
+                append("\tdclass(\"${dClass.name}\", listOf(${decl.parents.map { "\"$it\"" }.joinToString(",")})) {\n")
+                for ((localIndex, field) in dClass.fields.withIndex()) {
+                    val fieldId = index.getFieldId(dClass.name, localIndex.toUShort())
+                    val fieldName = field.name ?: "field${fieldId.id}"
+                    append("\t\tfield(\"$fieldName\", ${field.toRawFieldValueType(index, dClass.name).toTypeCode()})")
+                    val spec = field.toDistributedFieldSpec(index, fieldId, dClass.name)
 
                     if (spec.modifiers == DistributedFieldModifiers()) {
                         append("\n")
@@ -274,17 +303,19 @@ private fun StringBuilder.generateClassSpec(
 
                 append("\t}\n")
             }
+
             is DClassFile.TypeDecl.Struct -> {
                 val struct = decl
-                append("\t// ${struct.name}\n")
-                append("\tstruct {\n")
+                append("\tstruct(\"${struct.name}\") {\n")
 
-                for (field in struct.parameters) {
-                    append("\t\tfield(${field.type.toRawFieldValueType(index).toTypeCode()})\n")
+                for ((localIndex, field) in struct.parameters.withIndex()) {
+                    val fieldName = field.name ?: "field$localIndex"
+                    append("\t\tfield(\"$fieldName\",${field.type.toRawFieldValueType(index).toTypeCode()})\n")
                 }
 
                 append("\t}\n")
             }
+
             is DClassFile.TypeDecl.TypeDef -> {}
         }
     }
@@ -310,17 +341,17 @@ private fun DClassFile.DClassFieldType.generateTransformBody(prependIndent: Stri
 private fun DClassFile.DClassField.toOnSetCode(
     index: DClassFileIndex,
     dClassName: String,
-    localIndex: Int,
+    fieldId: FieldId,
     linePrepend: String,
 ): String {
-    val fieldName = (name ?: "field$localIndex").replaceFirstChar { it.uppercase() }
+    val fieldName = (name ?: "field${fieldId.id}").replaceFirstChar { it.uppercase() }
     val methodName =
         when (this) {
             is DClassFile.DClassField.ParameterField -> "onSet$fieldName"
             else -> "on$fieldName"
         }
 
-    val parameters = with(index) { parameters(dClassName) }
+    val parameters = with(index) { parameters(dClassName, fieldId) }
     return when (parameters.size) {
         0 -> {
             buildString {
@@ -335,6 +366,7 @@ private fun DClassFile.DClassField.toOnSetCode(
                 append(", sender)")
             }
         }
+
         else -> {
             buildString {
                 append("${linePrepend}it.toTuple()!!.let { values ->\n")

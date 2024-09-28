@@ -43,6 +43,7 @@ data class AstronClientMessage(
         }.toByteArray()
     }
 
+    @OptIn(ExperimentalStdlibApi::class)
     override fun toString(): String {
         val inner = StringBuilder().apply {
             val spec = ProtocolMessageRepository.byMsgType[msgType] ?: return@apply
@@ -53,8 +54,16 @@ data class AstronClientMessage(
             runCatching {
                 for (arg in spec.args) {
                     if (arg is ProtocolMessageArgumentSpec.Dynamic) {
-                        val data = buf.getRemaining().asUByteArray()
-                        append("\tDYNAMIC = $data\n")
+                        val data = buf.getRemaining()
+                        val dataStr = buildString {
+                            append("[")
+                            for ((index, i) in data.withIndex()) {
+                                if (index != 0) append(", ")
+                                append("0x${i.toHexString()}")
+                            }
+                            append("]")
+                        }
+                        append("\tDYNAMIC = $dataStr\n")
                         break
                     } else {
                         append("\t${arg.name} = ${arg.type.readValue(buf)}\n")
