@@ -1,6 +1,7 @@
 package org.astronkt.dclassmacro
 
 import org.astronkt.FieldValue
+import org.astronkt.ProtocolMessageArgumentSpec.Dynamic.type
 
 fun FieldValue.Type.toTypeCode(): String =
     when (this) {
@@ -28,7 +29,16 @@ fun FieldValue.Type.toTypeCode(): String =
             }.toString()
         }
 
-        is FieldValue.Type.Array -> "FieldValue.Type.Array(${type.toTypeCode()})"
+        is FieldValue.Type.Array -> {
+            val isSized =
+                if (sized != null) {
+                    ", sized = ${sized}U"
+                } else {
+                    ""
+                }
+
+            "FieldValue.Type.Array(${type.toTypeCode()}$isSized)"
+        }
         FieldValue.Type.Empty -> "FieldValue.Type.Empty"
     }
 

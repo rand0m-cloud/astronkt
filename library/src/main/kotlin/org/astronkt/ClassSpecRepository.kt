@@ -17,6 +17,7 @@ data class DistributedFieldSpec(
     val name: String,
     val modifiers: DistributedFieldModifiers = DistributedFieldModifiers(),
     val default: FieldValue? = null,
+    val molecular: Boolean = false,
 )
 
 data class DClassId(val id: UShort)
@@ -80,13 +81,13 @@ class ClassSpecRepository(val classes: List<DistributedSpec>) {
                 }
 
                 dClassId++
-
             }
         }
 
-    val byDClassName: Map<String, DClassId> = byDClassId.entries.associate { (dClass, value) ->
-        value.first.name to dClass
-    }
+    val byDClassName: Map<String, DClassId> =
+        byDClassId.entries.associate { (dClass, value) ->
+            value.first.name to dClass
+        }
 
     companion object {
         class Builder(val classes: MutableList<DistributedSpec> = mutableListOf()) {
@@ -101,9 +102,12 @@ class ClassSpecRepository(val classes: List<DistributedSpec>) {
                     )
                 }
 
-                fun molecular(name: String, vararg atoms: FieldValue.Type) {
+                fun molecular(
+                    name: String,
+                    vararg atoms: FieldValue.Type,
+                ) {
                     fields.add(
-                        DistributedFieldSpec(FieldValue.Type.Tuple(*atoms), name),
+                        DistributedFieldSpec(FieldValue.Type.Tuple(*atoms), name, molecular = true),
                     )
                 }
             }
@@ -155,18 +159,24 @@ class ClassSpecRepository(val classes: List<DistributedSpec>) {
                     DistributedSpec.DistributedClassSpec(
                         DClassDsl().apply(block).fields,
                         extends,
-                        name
+                        name,
                     ),
                 )
             }
 
             class StructDsl(internal val fields: MutableList<DistributedFieldSpec> = mutableListOf()) {
-                fun field(name: String, type: FieldValue.Type) {
+                fun field(
+                    name: String,
+                    type: FieldValue.Type,
+                ) {
                     fields.add(DistributedFieldSpec(type, name))
                 }
             }
 
-            fun struct(name: String, block: StructDsl.() -> Unit) {
+            fun struct(
+                name: String,
+                block: StructDsl.() -> Unit,
+            ) {
                 classes.add(DistributedSpec.DistributedStructSpec(StructDsl().apply(block).fields, name))
             }
         }
@@ -174,15 +184,57 @@ class ClassSpecRepository(val classes: List<DistributedSpec>) {
         fun build(block: Builder.() -> Unit): ClassSpecRepository = ClassSpecRepository(Builder().apply(block).classes)
     }
 
-    fun getRequiredFieldIds(dClass: DClassId): List<FieldId> {
-        val selfFields = byDClassId[dClass]!!
-            .second.filter {
-                byFieldId[it]!!.modifiers.required
+    fun getFieldIds(dClassName: String): List<FieldId> = getFieldIds(byDClassName[dClassName]!!)
+
+    fun getFieldIds(dClass: DClassId): List<FieldId> = byDClassId[dClass]!!.second
+
+    private fun FieldId.isRequired(): Boolean = byFieldId[this]!!.modifiers.required
+
+    /* TODO:
+     */
+    fun getRequiredFieldIds(
+        dClass: DClassId,
+        toClient: Boolean = false,
+        isOwner: Boolean = false,
+    ): List<FieldId> {
+        val selfFields =
+            getFieldIds(dClass)
+        val parents = byDClassId[dClass]!!.first.extends.orEmpty()
+        val fields =
+            (
+                parents.flatMap { name ->
+                    val parentDClassId = byDClassName[name]!!
+                    val parentSelf = getFieldIds(parentDClassId)
+                    parentSelf + byDClassId[parentDClassId]!!.first.extends.orEmpty().flatMap { getFieldIds(it) }
+                } + selfFields
+            ).sortedBy { it.id }.toMutableList()
+
+        val duplicates = mutableSetOf<FieldId>()
+        val fieldName = mutableMapOf<String, FieldId>()
+        for (id in fields) {
+            val name = byFieldId[id]!!.name
+
+            val old = fieldName.put(name, id)
+            if (old != null) {
+                duplicates.add(old)
             }
-        val parents = byDClassId[dClass]!!.first.extends ?: listOf()
-        val fields = parents.flatMap {
-            getRequiredFieldIds(byDClassName[it]!!)
-        } + selfFields
-        return fields.sortedBy { it.id }
+        }
+
+        fields.removeIf {
+            if (duplicates.contains(it)) return@removeIf true
+
+            val field = byFieldId[it]!!
+            val isRequired = field.modifiers.required
+            val isNotMolecular = !field.molecular
+            val isClientOnlyAllowed =
+                !toClient ||
+                    field.modifiers.broadcast ||
+                    field.modifiers.clrecv ||
+                    (isOwner && field.modifiers.ownrecv)
+
+            !(isRequired && isNotMolecular && isClientOnlyAllowed)
+        }
+
+        return fields
     }
 }

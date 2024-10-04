@@ -113,6 +113,12 @@ data class DClassFile(val decls: List<TypeDecl>) {
             val default: Literal.ArrayLiteral?,
         ) : DClassParameter() {
             sealed class ArrayRange {
+                fun isExactSize(): UInt? =
+                    when (this) {
+                        is Size -> size.value.toUInt()
+                        else -> null
+                    }
+
                 data object Empty : ArrayRange()
 
                 data class Size(val size: Literal.IntLiteral) : ArrayRange()
@@ -264,16 +270,42 @@ sealed interface DClassFileIndex {
     fun getDClassFields(dClassName: String): List<Pair<FieldId, DClassFile.DClassField>> {
         val dClass = getDClass(dClassName)
         val dClassId = getDClassId(dClassName)
-        return dClass.parents.flatMap { getDClassFields(it) }
-            .plus(dClass.fields.mapIndexed { index, field ->
-                (getFieldId(
-                    dClassName,
-                    index.toUShort()
-                ) to field)
-            }).associate { it }.toList().sortedBy { it.first.id }
+        val fields =
+            dClass.parents.asSequence().flatMap { getDClassFields(it) }
+                .plus(
+                    dClass.fields.mapIndexed { index, field ->
+                        (
+                            getFieldId(
+                                dClassName,
+                                index.toUShort(),
+                            ) to field
+                        )
+                    },
+                ).associate { it }.toList().sortedBy { it.first.id }.toMutableList()
+
+        // if a dclass has fields with the same name only use the last one described.
+        val duplicates = mutableSetOf<FieldId>()
+        val fieldName = mutableMapOf<String, FieldId>()
+        for ((id, field) in fields) {
+            if (field.name == null) continue
+
+            val old = fieldName.put(field.name!!, id)
+            if (old != null) {
+                duplicates.add(old)
+            }
+        }
+
+        fields.removeIf {
+            duplicates.contains(it.first)
+        }
+
+        return fields
     }
 
-    fun DClassFile.DClassField.parameters(dClassName: String, fieldId: FieldId): List<DClassFile.DClassParameter> {
+    fun DClassFile.DClassField.parameters(
+        dClassName: String,
+        fieldId: FieldId,
+    ): List<DClassFile.DClassParameter> {
         val allFields = getDClassFields(dClassName)
         return when (this) {
             is DClassFile.DClassField.AtomicField -> parameters
@@ -357,6 +389,7 @@ fun DClassFile.DClassField.toRawFieldValueType(
 
         is DClassFile.DClassField.MolecularField -> {
             val classFields = index.getDClassFields(parentClass!!).associateBy { it.second.name }
+            if (fields.size == 1) return classFields[fields[0]]!!.second.toRawFieldValueType(index)
             return FieldValue.Type.Tuple(
                 *fields.map {
                     classFields[it]!!.second.toRawFieldValueType(index)
@@ -390,7 +423,7 @@ fun DClassFile.DClassRawFieldType.toFieldValueType(index: DClassFileIndex? = nul
 
 fun DClassFile.DClassFieldType.toRawFieldValueType(index: DClassFileIndex? = null): FieldValue.Type {
     return when (this) {
-        is DClassFile.DClassFieldType.Array -> FieldValue.Type.Array(type.toRawFieldValueType(index))
+        is DClassFile.DClassFieldType.Array -> FieldValue.Type.Array(type.toRawFieldValueType(index), range.isExactSize())
         DClassFile.DClassFieldType.Char -> FieldValue.Type.Char
         is DClassFile.DClassFieldType.Float -> FieldValue.Type.Float64
         is DClassFile.DClassFieldType.Int -> type.toFieldValueType()
@@ -464,8 +497,7 @@ fun DClassFile.DClassParameter.FloatParameter.FloatTransform.toType(): String {
     return "${operator}${literal}${next?.toType() ?: ""}"
 }
 
-fun DClassFile.DClassFieldType.Sized.SizeConstraint.toType(): String =
-    if (maxSize != null) "($minSize - $maxSize)" else "($minSize)"
+fun DClassFile.DClassFieldType.Sized.SizeConstraint.toType(): String = if (maxSize != null) "($minSize - $maxSize)" else "($minSize)"
 
 fun String.toDClassFieldType(): DClassFile.DClassRawFieldType {
     return when (this) {

@@ -3,62 +3,68 @@ package org.astronkt.dclassmacro
 import org.astronkt.DistributedFieldModifiers
 import org.astronkt.FieldId
 import org.astronkt.FieldValue
-import org.astronkt.toFieldId
 import java.io.File
 
-fun generateDClassHelper(dClassFile: DClassFile, directory: File) {
+fun generateDClassHelper(
+    dClassFile: DClassFile,
+    directory: File,
+) {
     assert(directory.isDirectory)
 
     val index = dClassFile.buildIndex()
 
-
     val classSpec = File(directory.path + "/ClassSpec.kt")
-    classSpec.writeText(buildString {
-        append("@file:Suppress(\"unused\", \"NestedLambdaShadowedImplicitParameter\", \"TrailingComma\")\n\n")
-
-        append("package GameSpec\n\n")
-
-        append("import org.astronkt.*\n")
-
-        generateClassSpec(index, dClassFile)
-    })
-
-    for (decl in dClassFile.decls) {
-        val name = when (decl) {
-            is DClassFile.TypeDecl.DClass -> decl.name
-            is DClassFile.TypeDecl.Struct -> decl.name
-            is DClassFile.TypeDecl.TypeDef -> decl.newTypeName
-        }
-
-        val classFile = File(directory.path + "/$name.kt")
-
-        classFile.writeText(buildString {
+    classSpec.writeText(
+        buildString {
             append("@file:Suppress(\"unused\", \"NestedLambdaShadowedImplicitParameter\", \"TrailingComma\")\n\n")
 
             append("package GameSpec\n\n")
 
             append("import org.astronkt.*\n")
-            //append("import GameSpec.*\n\n")
 
+            generateClassSpec(index, dClassFile)
+        },
+    )
+
+    for (decl in dClassFile.decls) {
+        val name =
             when (decl) {
-                is DClassFile.TypeDecl.Struct -> generateStruct(index, decl)
-                is DClassFile.TypeDecl.TypeDef -> generateTypeDef(index, decl)
-                is DClassFile.TypeDecl.DClass -> {
-                    val dClassName = decl.name
-                    val (dClassId, dClass) = index.byDClassName[dClassName]!!
-                    val id = dClassId.id
-                    append("open class $dClassName(doId: DOId): DistributedObjectBase(doId, ${id}U.toDClassId()) {\n")
-
-                    generatePreamble(index, dClassName, id, dClass)
-                    generateFieldSpecs(index, dClass)
-                    generateFields(index, dClassName, dClass)
-                    generateEventSetters(index, dClass)
-
-                    append("}\n\n")
-                }
+                is DClassFile.TypeDecl.DClass -> decl.name
+                is DClassFile.TypeDecl.Struct -> decl.name
+                is DClassFile.TypeDecl.TypeDef -> decl.newTypeName
             }
-            append("\n")
-        })
+
+        val classFile = File(directory.path + "/$name.kt")
+
+        classFile.writeText(
+            buildString {
+                append("@file:Suppress(\"unused\", \"NestedLambdaShadowedImplicitParameter\", \"TrailingComma\")\n\n")
+
+                append("package GameSpec\n\n")
+
+                append("import org.astronkt.*\n")
+                // append("import GameSpec.*\n\n")
+
+                when (decl) {
+                    is DClassFile.TypeDecl.Struct -> generateStruct(index, decl)
+                    is DClassFile.TypeDecl.TypeDef -> generateTypeDef(index, decl)
+                    is DClassFile.TypeDecl.DClass -> {
+                        val dClassName = decl.name
+                        val (dClassId, dClass) = index.byDClassName[dClassName]!!
+                        val id = dClassId.id
+                        append("open class $dClassName(doId: DOId): DistributedObjectBase(doId, ${id}U.toDClassId()) {\n")
+
+                        generatePreamble(index, dClassName, id, dClass)
+                        generateFieldSpecs(index, dClass)
+                        generateFields(index, dClassName, dClass)
+                        generateEventSetters(index, dClass)
+
+                        append("}\n\n")
+                    }
+                }
+                append("\n")
+            },
+        )
     }
 }
 
@@ -132,8 +138,7 @@ fun StringBuilder.generateFields(
     dClassName: String,
     dClass: DClassFile.TypeDecl.DClass,
 ) {
-    for ((localFieldIndex, field) in dClass.fields.withIndex()) {
-        val id = index.getFieldId(dClassName, localFieldIndex.toUShort()).id
+    for ((fieldId, field) in index.getDClassFields(dClassName)) {
         when (field) {
             is DClassFile.DClassField.ParameterField -> {
                 val type = field.parameter.type
@@ -142,7 +147,7 @@ fun StringBuilder.generateFields(
                 val userDefined = type.userDefinedType()
                 append("\tvar ${field.name}: $userType\n\t\tget() = ")
 
-                append(type.destructure(index, "getField(${id}U.toFieldId())!!", "\t\t"))
+                append(type.destructure(index, "getField(${fieldId.id}U.toFieldId())!!", "\t\t"))
                 append("\n")
                 append("\t\tset(value) { ")
                 append(type.restructure(index, "value", "\t\t"))
@@ -172,7 +177,7 @@ fun StringBuilder.generateFields(
                 }
                 append(") {\n")
                 append(
-                    "\t\tsetField(${id}U.toFieldId(), ",
+                    "\t\tsetField(${fieldId.id}U.toFieldId(), ",
                 )
                 when (types.size) {
                     0 -> append("FieldValue.EmptyValue)")
@@ -194,14 +199,14 @@ fun StringBuilder.generateFields(
             }
 
             is DClassFile.DClassField.MolecularField -> {
-                assert(field.fields.size > 1) { "expected molecular to have more than one field" }
+                assert(field.fields.isNotEmpty()) { "expected molecular to have more than zero fields" }
 
                 val name = field.name
                 val fieldMap = index.getDClassFields(dClassName)
                 val atoms =
                     field.fields.map { atomName -> fieldMap.find { it.second.name == atomName }!!.second }
                         .flatMap { atom ->
-                            with(index) { atom.parameters(dClassName, id.toFieldId()) }
+                            with(index) { atom.parameters(dClassName, fieldId) }
                         }
 
                 append("\tfun $name(")
@@ -218,8 +223,7 @@ fun StringBuilder.generateFields(
 
                 append("\n")
 
-                val molecularFieldId = index.getFieldId(dClassName, localFieldIndex.toUShort())
-                append("\t\tsetField(${molecularFieldId.id}U.toFieldId(), FieldValue.TupleValue(")
+                append("\t\tsetField(${fieldId.id}U.toFieldId(), FieldValue.TupleValue(")
 
                 for ((localIndex, _) in atoms.withIndex()) {
                     append("arg${localIndex}Value, ")

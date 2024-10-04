@@ -403,6 +403,7 @@ object DClassFileParser : Grammar<DClassFile>() {
     val dclassUserTypeParameterParser by (dclassUserType * optional(ident) * optional(-equals * intLiteral)) map { (type, name, lit) ->
         DClassFile.DClassParameter.UserTypeParameter(type, name?.text, lit)
     }
+
     val dclassParameterParser: Parser<DClassFile.DClassParameter> by
         dclassArrayParameterParser or
             dclassSizedParameterParser or

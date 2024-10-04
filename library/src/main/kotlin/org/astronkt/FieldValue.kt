@@ -24,7 +24,9 @@ sealed class FieldValue {
 
     data class Int8Value(val value: Byte) : FieldValue()
 
-    data class CharValue(val value: Byte) : FieldValue()
+    data class CharValue(val value: UByte) : FieldValue() {
+        override fun toString(): String = "CharValue($value '${value.toInt().toChar()}')"
+    }
 
     data class Float64Value(val value: Double) : FieldValue()
 
@@ -36,7 +38,9 @@ sealed class FieldValue {
 
     data object EmptyValue : FieldValue()
 
-    class TupleValue(vararg val value: FieldValue) : FieldValue()
+    class TupleValue(vararg val value: FieldValue) : FieldValue() {
+        override fun toString(): String = value.toList().toString()
+    }
 
     sealed class Type {
         abstract fun readValue(buf: ByteBuffer): FieldValue
@@ -119,13 +123,12 @@ sealed class FieldValue {
             override fun toString(): kotlin.String = "Tuple(${types.toList()})"
         }
 
-        class Array(val type: Type) : Type() {
+        class Array(val type: Type, val sized: UInt? = null) : Type() {
             fun read(buf: ByteBuffer): List<FieldValue> {
-                val n = buf.getShort()
                 val list = mutableListOf<FieldValue>()
 
-                if (type.compositeType()) {
-                    val bytes = n
+                if (sized == null) {
+                    val bytes = buf.getShort()
                     val data = ByteArray(bytes.toInt()).also { buf.get(it) }
                     val dataBuf = ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN)
 
@@ -133,12 +136,10 @@ sealed class FieldValue {
                         list += type.readValue(dataBuf)
                     }
                 } else {
-                    for (i in 0..<n) {
+                    for (i in 0..<sized.toInt()) {
                         list += type.readValue(buf)
                     }
-
                 }
-
 
                 return list
             }
@@ -147,9 +148,9 @@ sealed class FieldValue {
         }
 
         data object Char : Type() {
-            fun read(buf: ByteBuffer): Byte = buf.get()
+            fun read(buf: ByteBuffer): UByte = buf.get().toUByte()
 
-            override fun readValue(buf: ByteBuffer): FieldValue = read(buf).toFieldValue()
+            override fun readValue(buf: ByteBuffer): FieldValue = CharValue(read(buf))
         }
 
         data object Float64 : Type() {
@@ -162,10 +163,11 @@ sealed class FieldValue {
             override fun readValue(buf: ByteBuffer): FieldValue = EmptyValue
         }
 
-        fun compositeType(): Boolean = when (this) {
-            is Tuple -> true
-            else -> false
-        }
+        fun compositeType(): Boolean =
+            when (this) {
+                is Tuple -> true
+                else -> false
+            }
     }
 
     fun toBytes(): ByteArray {
@@ -188,7 +190,7 @@ sealed class FieldValue {
                 }
 
                 is TupleValue -> value.map { write(it.toBytes()) }
-                is CharValue -> write(byteArrayOf(value))
+                is CharValue -> write(byteArrayOf(value.toByte()))
 
                 is UInt64Value ->
                     write(
@@ -462,31 +464,48 @@ sealed class FieldValue {
 }
 
 fun ULong.toFieldValue(): FieldValue = FieldValue.UInt64Value(this)
+
 fun Long.toFieldValue(): FieldValue = FieldValue.Int64Value(this)
+
 fun UInt.toFieldValue(): FieldValue = FieldValue.UInt32Value(this)
+
 fun Int.toFieldValue(): FieldValue = FieldValue.Int32Value(this)
+
 fun UShort.toFieldValue(): FieldValue = FieldValue.UInt16Value(this)
+
 fun Short.toFieldValue(): FieldValue = FieldValue.Int16Value(this)
+
 fun UByte.toFieldValue(): FieldValue = FieldValue.UInt8Value(this)
+
 fun Byte.toFieldValue(): FieldValue = FieldValue.Int8Value(this)
-fun Char.toFieldValue(): FieldValue = FieldValue.UInt8Value(code.toUByte())
+
+fun Char.toFieldValue(): FieldValue = FieldValue.CharValue(code.toUByte())
+
 fun Double.toFieldValue(): FieldValue = FieldValue.Float64Value(this)
+
 fun String.toFieldValue(): FieldValue = FieldValue.StringValue(this)
+
 fun ByteArray.toFieldValue(): FieldValue = FieldValue.BlobValue(this)
+
 fun FieldValue.toFieldValue(): FieldValue = this
-fun List<FieldValue>.toFieldValue(): FieldValue = error("")
+
+fun List<FieldValue>.toFieldValue(): FieldValue = error("todo")
 
 fun List<FieldValue>.toBytes(): ByteArray =
-    fold(ByteArrayOutputStream(), { out, value ->
+    fold(ByteArrayOutputStream()) { out, value ->
         out.apply {
             write(value.toBytes())
         }
-    }).toByteArray()
+    }.toByteArray()
 
 interface ToFieldValue<T> {
     val type: FieldValue.Type
+
     fun fromFieldValue(value: FieldValue): T
+
     fun T.toFieldValue(): FieldValue
+
     fun List<T>.toFieldValue(): FieldValue = FieldValue.ArrayValue(type, this.map { it.toFieldValue() })
+
     fun fromFieldValue(value: List<FieldValue>): List<T> = value.map { fromFieldValue(it) }
 }
