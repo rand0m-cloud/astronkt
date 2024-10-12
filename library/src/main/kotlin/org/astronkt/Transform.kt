@@ -6,20 +6,33 @@ interface TransformScope {
     fun modulo(modulus: Float)
 }
 
+sealed interface TransformOperation {
+    data class Divide(val divisor: Float) : TransformOperation
+    data class Modulo(val modulus: Float) : TransformOperation
+}
+
 fun Double.unTransform(
     type: FieldValue.Type,
     block: TransformScope.() -> Unit,
 ): FieldValue {
     var value = this
+    val operations = mutableListOf<TransformOperation>()
     object : TransformScope {
         override fun divide(divisor: Float) {
-            value *= divisor
+            operations += TransformOperation.Divide(divisor)
         }
 
         override fun modulo(modulus: Float) {
-            value %= modulus
+            operations += TransformOperation.Modulo(modulus)
         }
     }.block()
+
+    for (op in operations.asReversed()) {
+        when (op) {
+            is TransformOperation.Divide -> value *= op.divisor
+            is TransformOperation.Modulo -> value %= op.modulus
+        }
+    }
 
     return when (type) {
         FieldValue.Type.Float64 -> value.toFieldValue()

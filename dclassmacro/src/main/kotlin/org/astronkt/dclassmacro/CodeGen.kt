@@ -112,7 +112,16 @@ fun StringBuilder.generateFieldSpecs(
         if (spec.modifiers.ownsend) printModifier("ownsend")
         if (spec.modifiers.clsend) printModifier("clsend")
 
-        append("\t\t\t\t)\n")
+        append("\t\t\t\t),\n")
+
+        if (spec.molecular != null) {
+            append("\t\t\t\tmolecular = listOf(")
+            for (id in spec.molecular!!) {
+                append("${id.id}U.toFieldId(), ")
+            }
+            append(")\n")
+        }
+
         append("\t\t\t),\n")
 
         append("\t\t\tonChange = { it, sender ->\n")
@@ -223,13 +232,18 @@ fun StringBuilder.generateFields(
 
                 append("\n")
 
-                append("\t\tsetField(${fieldId.id}U.toFieldId(), FieldValue.TupleValue(")
+                if (atoms.size == 1) {
+                    append("\t\tsetField(${fieldId.id}U.toFieldId(), arg0Value)\n")
+                } else {
+                    append("\t\tsetField(${fieldId.id}U.toFieldId(), FieldValue.TupleValue(")
 
-                for ((localIndex, _) in atoms.withIndex()) {
-                    append("arg${localIndex}Value, ")
+                    for ((localIndex, _) in atoms.withIndex()) {
+                        append("arg${localIndex}Value, ")
+                    }
+
+                    append("))\n")
                 }
 
-                append("))\n")
                 append("\t}\n")
             }
         }

@@ -1,6 +1,8 @@
 **/build/
-.idea
-.gradle
-.kotlin
+**/.idea
+**/.gradle
+**/.kotlin
+**/gradle.properties
 db/
 clientapp/src/main/kotlin/GameSpec/
+

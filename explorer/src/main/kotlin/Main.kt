@@ -161,6 +161,7 @@ class MessageBuilder(
                     FieldValue.Type.Blob -> return buildUnknownData()
                     is FieldValue.Type.Array -> return buildUnknownData()
                     is FieldValue.Type.Tuple -> return buildFieldValueTuple(name, type)
+                    FieldValue.Type.Empty -> TODO()
                 }
 
             Locking.print(prompt)
@@ -177,16 +178,17 @@ class MessageBuilder(
 
     private fun buildUnknownData(): MessageBuilder? {
         while (true) {
-            Locking.println("u/U/UL/S (short, int, long, string): ")
+            Locking.println("x/u/U/UL/S (byte, short, int, long, string): ")
             val dataType = readln()
             if (dataType.isEmpty()) break
             if (dataType == "q") return null
             if (!(
-                    dataType.startsWith("UL") ||
-                        dataType.startsWith("U") ||
-                        dataType.startsWith("u") ||
-                        dataType.startsWith("S")
-                )
+                        dataType.startsWith("UL") ||
+                                dataType.startsWith("U") ||
+                                dataType.startsWith("u") ||
+                                dataType.startsWith("S") ||
+                                dataType.startsWith("x")
+                        )
             ) {
                 continue
             }
@@ -202,6 +204,8 @@ class MessageBuilder(
                 data.add(resp.toUInt().toFieldValue())
             } else if (dataType.startsWith("S")) {
                 data.add(resp.toFieldValue())
+            } else if (dataType.startsWith("x")) {
+                data.add(resp.toUByte().toFieldValue())
             }
         }
 

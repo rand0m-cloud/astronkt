@@ -1,6 +1,9 @@
 package org.astronkt.client
 
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.first
 import org.astronkt.*
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -23,7 +26,12 @@ class AstronClientRepository(
     private val objectsDClass: MutableMap<DOId, DClassId> = mutableMapOf()
     val classRepository = ClassRepository()
 
-    internal val activeInterests = mutableSetOf<InterestId>()
+    private val activeInterests = mutableSetOf<InterestId>()
+
+    data class FieldUpdate(val doId: DOId, val fieldId: FieldId, val value: FieldValue)
+
+    private val _fieldUpdates: MutableSharedFlow<FieldUpdate> = MutableSharedFlow()
+    val fieldUpdates: SharedFlow<FieldUpdate> = _fieldUpdates
 
     suspend fun launch() {
         astronClientNetwork.connect(config.serverAddress)
@@ -56,7 +64,7 @@ class AstronClientRepository(
         }
     }
 
-    private fun recieveMessage(message: AstronClientMessage) {
+    private suspend fun recieveMessage(message: AstronClientMessage) {
         val buf = ByteBuffer.wrap(message.msgData).order(ByteOrder.LITTLE_ENDIAN)
         when (message.msgType) {
             120U.toUShort() -> {
@@ -128,6 +136,7 @@ class AstronClientRepository(
                     }.toTypedArray(),
                 )
             }
+
             173U.toUShort() -> {
                 // enter object other w/ownership
                 val doId = FieldValue.Type.UInt32.read(buf).toDOId()
@@ -137,7 +146,7 @@ class AstronClientRepository(
                 val fields =
                     classSpecRepository.getRequiredFieldIds(dclassId, toClient = true, isOwner = true).map {
                         it to
-                            classSpecRepository.byFieldId[it]!!.type.readValue(buf)
+                                classSpecRepository.byFieldId[it]!!.type.readValue(buf)
                     }
 
                 val otherFieldsLen = FieldValue.Type.UInt16.read(buf)
@@ -207,7 +216,7 @@ class AstronClientRepository(
         )
     }
 
-    fun receiveFieldUpdate(
+    suspend fun receiveFieldUpdate(
         doId: DOId,
         fieldId: FieldId,
         value: FieldValue,
@@ -219,6 +228,8 @@ class AstronClientRepository(
         classes.forEach {
             it.setField(fieldId, value, true)
         }
+
+        _fieldUpdates.emit(FieldUpdate(doId, fieldId, value))
     }
 }
 
@@ -251,4 +262,42 @@ fun AstronClientRepository.setLocation(
             listOf(doId.toFieldValue(), parentId.toFieldValue(), zoneId.toFieldValue()).toBytes(),
         ),
     )
+}
+
+suspend fun <T : Any> AstronClientRepository.awaitNetworkMessage(
+    timeout: Long = 10000L,
+    predicate: (AstronClientMessage) -> T?,
+): T {
+    lateinit var t: T
+
+    withTimeout(timeout) {
+        astronClientNetwork.networkMessages.first { msg ->
+            val maybeT = predicate(msg)
+            if (maybeT != null) {
+                t = maybeT
+                true
+            } else {
+                false
+            }
+        }
+    }
+
+    return t
+}
+
+suspend fun AstronClientRepository.awaitFieldSet(doId: DOId, fieldId: FieldId, timeout: Long = 10000L): FieldValue {
+    lateinit var value: FieldValue
+
+    withTimeout(timeout) {
+        fieldUpdates.first { update ->
+            if (update.doId == doId && update.fieldId == fieldId) {
+                value = update.value
+                true
+            } else {
+                false
+            }
+        }
+    }
+
+    return value
 }

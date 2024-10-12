@@ -1,0 +1,6 @@
+dclass Cube {
+    uint8 color broadcast required;
+    uint32%100 x broadcast required;
+    uint32%100 y broadcast required;
+    uint32%100 z broadcast required;
+}

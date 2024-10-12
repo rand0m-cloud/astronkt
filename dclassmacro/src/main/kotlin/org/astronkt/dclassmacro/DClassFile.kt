@@ -275,11 +275,11 @@ sealed interface DClassFileIndex {
                 .plus(
                     dClass.fields.mapIndexed { index, field ->
                         (
-                            getFieldId(
-                                dClassName,
-                                index.toUShort(),
-                            ) to field
-                        )
+                                getFieldId(
+                                    dClassName,
+                                    index.toUShort(),
+                                ) to field
+                                )
                     },
                 ).associate { it }.toList().sortedBy { it.first.id }.toMutableList()
 
@@ -423,7 +423,11 @@ fun DClassFile.DClassRawFieldType.toFieldValueType(index: DClassFileIndex? = nul
 
 fun DClassFile.DClassFieldType.toRawFieldValueType(index: DClassFileIndex? = null): FieldValue.Type {
     return when (this) {
-        is DClassFile.DClassFieldType.Array -> FieldValue.Type.Array(type.toRawFieldValueType(index), range.isExactSize())
+        is DClassFile.DClassFieldType.Array -> FieldValue.Type.Array(
+            type.toRawFieldValueType(index),
+            range.isExactSize()
+        )
+
         DClassFile.DClassFieldType.Char -> FieldValue.Type.Char
         is DClassFile.DClassFieldType.Float -> FieldValue.Type.Float64
         is DClassFile.DClassFieldType.Int -> type.toFieldValueType()
@@ -462,6 +466,16 @@ fun DClassFile.DClassField.toDistributedFieldSpec(
                 is DClassFile.DClassFieldModifier.OwnRecv -> acc.copy(ownrecv = true)
             }
         },
+        molecular = when (this) {
+            is DClassFile.DClassField.MolecularField -> {
+                val allFields = index.getDClassFields(parentClass)
+                fields.map { atomName ->
+                    allFields.find { (_, dfield) -> dfield.name == atomName }!!.first
+                }
+            }
+
+            else -> null
+        }
     )
 }
 
@@ -497,7 +511,8 @@ fun DClassFile.DClassParameter.FloatParameter.FloatTransform.toType(): String {
     return "${operator}${literal}${next?.toType() ?: ""}"
 }
 
-fun DClassFile.DClassFieldType.Sized.SizeConstraint.toType(): String = if (maxSize != null) "($minSize - $maxSize)" else "($minSize)"
+fun DClassFile.DClassFieldType.Sized.SizeConstraint.toType(): String =
+    if (maxSize != null) "($minSize - $maxSize)" else "($minSize)"
 
 fun String.toDClassFieldType(): DClassFile.DClassRawFieldType {
     return when (this) {

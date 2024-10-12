@@ -8,9 +8,9 @@ abstract class DistributedObjectBase(val doId: DOId, val dclassId: DClassId) {
     abstract val objectFields: Map<FieldId, DistributedField>
     val coroutineScope: CoroutineScope =
         (if (isClient) clientRepository.objectsCoroutineScope else internalRepository.objectsCoroutineScope) +
-            CoroutineName(
-                "DO-$doId",
-            )
+                CoroutineName(
+                    "DO-$doId",
+                )
     var isAlive: Boolean = true
         private set
 
@@ -31,6 +31,17 @@ abstract class DistributedObjectBase(val doId: DOId, val dclassId: DClassId) {
         objectFields[fieldId]!!.apply {
             value = fieldValue
             onChange.invoke(fieldValue, sender)
+        }
+
+        val atoms = objectFields[fieldId]!!.spec.molecular
+        if (atoms != null) {
+            if (atoms.size == 1) {
+                setField(atoms[0], fieldValue, true, sender)
+            } else {
+                for ((value, id) in fieldValue.toTuple()!!.zip(atoms)) {
+                    setField(id, value, true, sender)
+                }
+            }
         }
 
         if (fromNetwork) return

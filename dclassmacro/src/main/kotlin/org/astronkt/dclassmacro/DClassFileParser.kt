@@ -121,38 +121,38 @@ object DClassFileParser : Grammar<DClassFile>() {
 
     // Token parsers
     val intType: Parser<DClassFile.DClassRawFieldType.IntType> by (
-        (uint64 map { DClassFile.DClassRawFieldType.UInt64 })
-            or (int64 map { DClassFile.DClassRawFieldType.Int64 })
-            or (uint32 map { DClassFile.DClassRawFieldType.UInt32 })
-            or (int32 map { DClassFile.DClassRawFieldType.Int32 })
-            or (uint16 map { DClassFile.DClassRawFieldType.UInt16 })
-            or (int16 map { DClassFile.DClassRawFieldType.Int16 })
-            or (uint8 map { DClassFile.DClassRawFieldType.UInt8 })
-            or (int8 map { DClassFile.DClassRawFieldType.Int8 })
-    ) map { it }
+            (uint64 map { DClassFile.DClassRawFieldType.UInt64 })
+                    or (int64 map { DClassFile.DClassRawFieldType.Int64 })
+                    or (uint32 map { DClassFile.DClassRawFieldType.UInt32 })
+                    or (int32 map { DClassFile.DClassRawFieldType.Int32 })
+                    or (uint16 map { DClassFile.DClassRawFieldType.UInt16 })
+                    or (int16 map { DClassFile.DClassRawFieldType.Int16 })
+                    or (uint8 map { DClassFile.DClassRawFieldType.UInt8 })
+                    or (int8 map { DClassFile.DClassRawFieldType.Int8 })
+            ) map { it }
     val charType by char map { DClassFile.DClassRawFieldType.Char }
     val sizedType: Parser<DClassFile.DClassRawFieldType.SizedType> by (
-        string map {
-            DClassFile.DClassRawFieldType.String
-        }
-    ) or (blob map { DClassFile.DClassRawFieldType.Blob })
+            string map {
+                DClassFile.DClassRawFieldType.String
+            }
+            ) or (blob map { DClassFile.DClassRawFieldType.Blob })
     val floatType: Parser<DClassFile.DClassRawFieldType.FloatType> by float64 map { DClassFile.DClassRawFieldType.Float64 }
 
     val operator =
         (minus map { DClassFile.Operator.Minus }) or
-            (plus map { DClassFile.Operator.Plus }) or
-            (star map { DClassFile.Operator.Multiply }) or
-            (divide map { DClassFile.Operator.Divide }) or
-            (modolus map { DClassFile.Operator.Modulo })
+                (plus map { DClassFile.Operator.Plus }) or
+                (star map { DClassFile.Operator.Multiply }) or
+                (divide map { DClassFile.Operator.Divide }) or
+                (modolus map { DClassFile.Operator.Modulo })
     val dclassFieldModifierParser by (required map { DClassFile.DClassFieldModifier.Required }) or
-        (broadcast map { DClassFile.DClassFieldModifier.Broadcast }) or
-        (clsend map { DClassFile.DClassFieldModifier.ClSend }) or
-        (clrecv map { DClassFile.DClassFieldModifier.ClRecv }) or
-        (ram map { DClassFile.DClassFieldModifier.Ram }) or
-        (db map { DClassFile.DClassFieldModifier.Db }) or
-        (airecv map { DClassFile.DClassFieldModifier.AiRecv }) or
-        (ownsend map { DClassFile.DClassFieldModifier.OwnSend }) or
-        (ownrecv map { DClassFile.DClassFieldModifier.OwnRecv })
+            (broadcast map { DClassFile.DClassFieldModifier.Broadcast }) or
+            (clsend map { DClassFile.DClassFieldModifier.ClSend }) or
+            (clrecv map { DClassFile.DClassFieldModifier.ClRecv }) or
+            (ram map { DClassFile.DClassFieldModifier.Ram }) or
+            (db map { DClassFile.DClassFieldModifier.Db }) or
+            (airecv map { DClassFile.DClassFieldModifier.AiRecv }) or
+            (ownsend map { DClassFile.DClassFieldModifier.OwnSend }) or
+            (ownrecv map { DClassFile.DClassFieldModifier.OwnRecv })
 
     // Literals
     val decLiteral by (optional(minus) * decIntLit) map { (minus, lit) ->
@@ -271,21 +271,21 @@ object DClassFileParser : Grammar<DClassFile>() {
 
     val intConstant: Parser<DClassFile.DClassParameter.IntParameter.IntConstant> =
         (
-            intLiteral map {
-                DClassFile.DClassParameter.IntParameter.IntConstant(
-                    it,
-                    null,
-                )
-            }
-        ) or
-            (
-                (-openParen * intLiteral * intTransform * -closeParen) map { (lit, transform) ->
+                intLiteral map {
                     DClassFile.DClassParameter.IntParameter.IntConstant(
-                        lit,
-                        transform,
+                        it,
+                        null,
                     )
                 }
-            )
+                ) or
+                (
+                        (-openParen * intLiteral * intTransform * -closeParen) map { (lit, transform) ->
+                            DClassFile.DClassParameter.IntParameter.IntConstant(
+                                lit,
+                                transform,
+                            )
+                        }
+                        )
 
     val floatRange by (-openParen * floatLiteral * -minus * floatLiteral * -closeParen) map { (open, close) ->
         DClassFile.DClassParameter.FloatParameter.FloatRange(
@@ -294,26 +294,26 @@ object DClassFileParser : Grammar<DClassFile>() {
         )
     }
     val floatTransform: Parser<DClassFile.DClassParameter.FloatParameter.FloatTransform> by (
-        (operator * numLiteral * optional(parser(this::floatTransform))) map { (op, lit, next) ->
-            DClassFile.DClassParameter.FloatParameter.FloatTransform(
-                op,
-                lit,
-                next,
-            )
-        }
-    ) or ((-openParen * parser(this::floatTransform) * -closeParen))
+            (operator * numLiteral * optional(parser(this::floatTransform))) map { (op, lit, next) ->
+                DClassFile.DClassParameter.FloatParameter.FloatTransform(
+                    op,
+                    lit,
+                    next,
+                )
+            }
+            ) or ((-openParen * parser(this::floatTransform) * -closeParen))
     val floatConstant by (
-        numLiteral map {
-            DClassFile.DClassParameter.FloatParameter.FloatConstant(
-                it,
-                null,
+            numLiteral map {
+                DClassFile.DClassParameter.FloatParameter.FloatConstant(
+                    it,
+                    null,
+                )
+            }
+            ) or (
+            (-openBrace * numLiteral * floatTransform * -closeBrace) map { (lit, transform) ->
+                DClassFile.DClassParameter.FloatParameter.FloatConstant(lit, transform)
+            }
             )
-        }
-    ) or (
-        (-openBrace * numLiteral * floatTransform * -closeBrace) map { (lit, transform) ->
-            DClassFile.DClassParameter.FloatParameter.FloatConstant(lit, transform)
-        }
-    )
 
     val arrayRange by (-openBracket * optional(intLiteral * optional(-minus * intLiteral)) * -closeBracket) map {
         when {
@@ -345,7 +345,12 @@ object DClassFileParser : Grammar<DClassFile>() {
 
     val dclassCharType by charType map { DClassFile.DClassFieldType.Char }
 
-    val dclassSizedType by (sizedType * optional(sizeConstraint)) map { (type, size) -> DClassFile.DClassFieldType.Sized(type, size) }
+    val dclassSizedType by (sizedType * optional(sizeConstraint)) map { (type, size) ->
+        DClassFile.DClassFieldType.Sized(
+            type,
+            size
+        )
+    }
 
     val dclassUserType by ident map {
         DClassFile.DClassFieldType.User(
@@ -354,9 +359,9 @@ object DClassFileParser : Grammar<DClassFile>() {
     }
 
     val dclassArrayType by (
-        (dclassIntType or dclassFloatType or dclassCharType or dclassSizedType or dclassUserType) *
-            oneOrMore(arrayRange)
-    ) map { (type, ranges) ->
+            (dclassIntType or dclassFloatType or dclassCharType or dclassSizedType or dclassUserType) *
+                    oneOrMore(arrayRange)
+            ) map { (type, ranges) ->
         ranges.fold(type) { acc, x ->
             DClassFile.DClassFieldType.Array(acc, x)
         } as DClassFile.DClassFieldType.Array
@@ -365,11 +370,11 @@ object DClassFileParser : Grammar<DClassFile>() {
     val dclassType by (dclassArrayType or dclassIntType or dclassFloatType or dclassCharType or dclassSizedType or dclassUserType)
 
     val dclassIntParameterParser by (
-        dclassIntType * optional(ident) *
-            optional(
-                -equals * intConstant,
-            )
-    ) map { (intType, name, constant) ->
+            dclassIntType * optional(ident) *
+                    optional(
+                        -equals * intConstant,
+                    )
+            ) map { (intType, name, constant) ->
         DClassFile.DClassParameter.IntParameter(intType, name?.text, constant)
     }
 
@@ -378,16 +383,16 @@ object DClassFileParser : Grammar<DClassFile>() {
     }
 
     val dclassFloatParameterParser by (
-        dclassFloatType *
-            optional(ident) *
-            optional(-equals * floatConstant)
-    ) map { (floatType, ident, constant) ->
+            dclassFloatType *
+                    optional(ident) *
+                    optional(-equals * floatConstant)
+            ) map { (floatType, ident, constant) ->
         DClassFile.DClassParameter.FloatParameter(floatType, ident?.text, constant)
     }
 
     val dclassSizedParameterParser by (
-        dclassSizedType * optional(ident) * optional(-equals * sizedLiteral)
-    ) map { (type, name, default) ->
+            dclassSizedType * optional(ident) * optional(-equals * sizedLiteral)
+            ) map { (type, name, default) ->
         DClassFile.DClassParameter.SizedParameter(
             type,
             name?.text,
@@ -395,17 +400,26 @@ object DClassFileParser : Grammar<DClassFile>() {
         )
     }
 
+    // This parser is more complicated than I would like, but these can be found in the OpenToontown files.
+    // AvatarPendingDel ACCOUNT_AV_SET_DEL[] db;
+    //
+    // We must account for parameters where the arrayRange comes after the identifier.
     val dclassArrayParameterParser by
-        dclassArrayType * optional(ident) * optional(-equals * arrayLiteral) map { (type, name, literal) ->
-            DClassFile.DClassParameter.ArrayParameter(type, name?.text, literal)
-        }
+    (dclassType * optional(ident) * oneOrMore(arrayRange) * optional(-equals * arrayLiteral) map { (type, name, ranges, literal) ->
+        val ty = ranges.fold(type) { acc, x ->
+            DClassFile.DClassFieldType.Array(acc, x)
+        } as DClassFile.DClassFieldType.Array
+        DClassFile.DClassParameter.ArrayParameter(ty, name?.text, literal)
+    }) or (dclassArrayType * optional(ident) * optional(-equals * arrayLiteral) map { (type, name, literal) ->
+        DClassFile.DClassParameter.ArrayParameter(type, name?.text, literal)
+    })
 
     val dclassUserTypeParameterParser by (dclassUserType * optional(ident) * optional(-equals * intLiteral)) map { (type, name, lit) ->
         DClassFile.DClassParameter.UserTypeParameter(type, name?.text, lit)
     }
 
     val dclassParameterParser: Parser<DClassFile.DClassParameter> by
-        dclassArrayParameterParser or
+    dclassArrayParameterParser or
             dclassSizedParameterParser or
             dclassUserTypeParameterParser or
             dclassCharParameterParser or
@@ -413,73 +427,73 @@ object DClassFileParser : Grammar<DClassFile>() {
             dclassIntParameterParser
 
     val dclassParameterFieldParser by (
-        dclassParameterParser *
-            zeroOrMore(
-                dclassFieldModifierParser,
-            ) * -semicolon
-    ) map { (parameter, modifiers) ->
+            dclassParameterParser *
+                    zeroOrMore(
+                        dclassFieldModifierParser,
+                    ) * -semicolon
+            ) map { (parameter, modifiers) ->
         DClassFile.DClassField.ParameterField(parameter, modifiers)
     }
 
     val dclassAtomicFieldParser by (
-        ident * -openParen *
-            separatedTerms(
-                dclassParameterParser,
-                comma,
-                acceptZero = true,
-            ) * -closeParen * zeroOrMore(dclassFieldModifierParser) * -semicolon
-    ) map { (ident, parameters, modifiers) ->
+            ident * -openParen *
+                    separatedTerms(
+                        dclassParameterParser,
+                        comma,
+                        acceptZero = true,
+                    ) * -closeParen * zeroOrMore(dclassFieldModifierParser) * -semicolon
+            ) map { (ident, parameters, modifiers) ->
         DClassFile.DClassField.AtomicField(ident.text, parameters, modifiers)
     }
 
     val dclassMolecularFieldParser by (
-        ident * -colon *
-            separatedTerms(
-                ident,
-                comma,
-                acceptZero = false,
-            ) * -semicolon
-    ) map { (name, fields) ->
+            ident * -colon *
+                    separatedTerms(
+                        ident,
+                        comma,
+                        acceptZero = false,
+                    ) * -semicolon
+            ) map { (name, fields) ->
         DClassFile.DClassField.MolecularField(name.text, fields.map { it.text })
     }
 
     val dclassFieldParser: Parser<DClassFile.DClassField> by dclassParameterFieldParser or
-        dclassAtomicFieldParser or
-        dclassMolecularFieldParser
+            dclassAtomicFieldParser or
+            dclassMolecularFieldParser
 
     val dclassParser by (
-        -dclassKeyword *
-            ident *
-            optional(-colon * separatedTerms(ident, comma)) *
-            -openBrace *
-            zeroOrMore(dclassFieldParser) *
-            -closeBrace *
-            -optional(semicolon)
-    ) map
-        { (name, parents, fields) ->
-            DClassFile.TypeDecl.DClass(name.text, parents?.map { it.text } ?: listOf(), fields)
-        }
+            -dclassKeyword *
+                    ident *
+                    optional(-colon * separatedTerms(ident, comma)) *
+                    -openBrace *
+                    zeroOrMore(dclassFieldParser) *
+                    -closeBrace *
+                    -optional(semicolon)
+            ) map
+            { (name, parents, fields) ->
+                DClassFile.TypeDecl.DClass(name.text, parents?.map { it.text } ?: listOf(), fields)
+            }
 
     val structParser by (
-        -structKeyword *
-            ident *
-            -openBrace *
-            oneOrMore(dclassParameterParser * -semicolon) *
-            -closeBrace *
-            -optional(semicolon)
-    ) map { (name, parameters) ->
+            -structKeyword *
+                    ident *
+                    -openBrace *
+                    oneOrMore(dclassParameterParser * -semicolon) *
+                    -closeBrace *
+                    -optional(semicolon)
+            ) map { (name, parameters) ->
         DClassFile.TypeDecl.Struct(name.text, parameters)
     }
 
     val typeDefParser by (
-        -typeDefKeyword *
-            dclassType *
-            (
-                (ident * optional(arrayRange) map { (ident, range) -> ident to range }) or
-                    (optional(arrayRange) * ident map { (range, ident) -> ident to range })
-            ) *
-            -optional(semicolon)
-    ) map { (type, tuple) ->
+            -typeDefKeyword *
+                    dclassType *
+                    (
+                            (ident * optional(arrayRange) map { (ident, range) -> ident to range }) or
+                                    (optional(arrayRange) * ident map { (range, ident) -> ident to range })
+                            ) *
+                    -optional(semicolon)
+            ) map { (type, tuple) ->
         val (name, range) = tuple
         DClassFile.TypeDecl.TypeDef(
             if (range == null) type else DClassFile.DClassFieldType.Array(type, range),

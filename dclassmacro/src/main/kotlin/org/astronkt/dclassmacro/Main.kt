@@ -4,8 +4,14 @@ import com.github.h0tk3y.betterParse.grammar.parseToEnd
 import java.io.File
 
 fun main(args: Array<String>) {
+    assert(args.size >= 2) { "expected arguments to be <input_file>+ <output_dir>" }
+
+    val inputFiles = (0..<args.size - 1).map {
+        val filename = args[it]
+        File(filename)
+    }
     val inputFile = File(args.firstOrNull() ?: "../game.dc")
-    val outputDir = File(args.getOrNull(2) ?: "../clientapp/src/main/kotlin/GameSpec").apply {
+    val outputDir = File(args.last()).apply {
         if (!exists()) {
             mkdirs()
         } else {
@@ -13,7 +19,7 @@ fun main(args: Array<String>) {
             mkdirs()
         }
     }
-    val fileSrc = inputFile.readText()
+    val fileSrc = inputFiles.joinToString("\n") { it.readText() }
 
     // debugTokens(fileSrc)
     val file = DClassFileParser.parseToEnd(fileSrc)

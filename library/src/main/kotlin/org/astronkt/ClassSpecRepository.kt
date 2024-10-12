@@ -17,7 +17,7 @@ data class DistributedFieldSpec(
     val name: String,
     val modifiers: DistributedFieldModifiers = DistributedFieldModifiers(),
     val default: FieldValue? = null,
-    val molecular: Boolean = false,
+    val molecular: List<FieldId>? = null,
 )
 
 data class DClassId(val id: UShort)
@@ -104,10 +104,11 @@ class ClassSpecRepository(val classes: List<DistributedSpec>) {
 
                 fun molecular(
                     name: String,
+                    atomFields: List<FieldId>,
                     vararg atoms: FieldValue.Type,
                 ) {
                     fields.add(
-                        DistributedFieldSpec(FieldValue.Type.Tuple(*atoms), name, molecular = true),
+                        DistributedFieldSpec(FieldValue.Type.Tuple(*atoms), name, molecular = atomFields),
                     )
                 }
             }
@@ -202,12 +203,12 @@ class ClassSpecRepository(val classes: List<DistributedSpec>) {
         val parents = byDClassId[dClass]!!.first.extends.orEmpty()
         val fields =
             (
-                parents.flatMap { name ->
-                    val parentDClassId = byDClassName[name]!!
-                    val parentSelf = getFieldIds(parentDClassId)
-                    parentSelf + byDClassId[parentDClassId]!!.first.extends.orEmpty().flatMap { getFieldIds(it) }
-                } + selfFields
-            ).sortedBy { it.id }.toMutableList()
+                    parents.flatMap { name ->
+                        val parentDClassId = byDClassName[name]!!
+                        val parentSelf = getFieldIds(parentDClassId)
+                        parentSelf + byDClassId[parentDClassId]!!.first.extends.orEmpty().flatMap { getFieldIds(it) }
+                    } + selfFields
+                    ).sortedBy { it.id }.toMutableList()
 
         val duplicates = mutableSetOf<FieldId>()
         val fieldName = mutableMapOf<String, FieldId>()
@@ -225,12 +226,12 @@ class ClassSpecRepository(val classes: List<DistributedSpec>) {
 
             val field = byFieldId[it]!!
             val isRequired = field.modifiers.required
-            val isNotMolecular = !field.molecular
+            val isNotMolecular = field.molecular == null
             val isClientOnlyAllowed =
                 !toClient ||
-                    field.modifiers.broadcast ||
-                    field.modifiers.clrecv ||
-                    (isOwner && field.modifiers.ownrecv)
+                        field.modifiers.broadcast ||
+                        field.modifiers.clrecv ||
+                        (isOwner && field.modifiers.ownrecv)
 
             !(isRequired && isNotMolecular && isClientOnlyAllowed)
         }
