@@ -7,13 +7,16 @@ dependencyResolutionManagement {
 
     repositories {
         mavenCentral()
-        mavenLocal()
     }
 }
 
 pluginManagement {
     repositories {
         mavenCentral()
-        mavenLocal()
     }
+}
+
+rootProject.name = "sample-project"
+includeBuild("../") {
+    name = "astronkt"
 }

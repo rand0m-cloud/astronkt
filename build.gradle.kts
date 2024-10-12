@@ -3,6 +3,9 @@ plugins {
     `maven-publish`
 }
 
+group = "org.astronkt"
+version = "0.1.1"
+
 publishing {
     repositories {
         maven {

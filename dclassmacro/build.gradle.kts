@@ -4,16 +4,13 @@ plugins {
     `maven-publish`
 }
 
-group = "org.astronkt"
-version = "0.1.0"
-
 publishing {
     publications {
         create<MavenPublication>("dclassmacro") {
             from(components["java"])
             groupId = "org.astronkt"
             artifactId = "dclassmacro"
-            version = "0.1.0"
+            version = rootProject.version as String
         }
     }
 

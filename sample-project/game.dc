@@ -4,3 +4,10 @@ dclass Cube {
     uint32%100 y broadcast required;
     uint32%100 z broadcast required;
 }
+
+dclass Authenticator {
+    requestLogin() clsend;
+    requestLoginAck();
+}
+
+dclass GameRoot {}

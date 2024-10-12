@@ -4,19 +4,19 @@ plugins {
     `java-gradle-plugin`
 }
 
-group = "org.astronkt"
-version = "0.1.0"
-
 dependencies {
     compileOnly(libs.kotlin.plugin)
     implementation(project(":dclassmacro"))
 }
+
+group = "org.astronkt"
 
 gradlePlugin {
     plugins {
         create("dclassPlugin") {
             id = "org.astronkt.plugin"
             implementationClass = "org.astronkt.plugin.DClassPlugin"
+            version = rootProject.version
         }
     }
 }

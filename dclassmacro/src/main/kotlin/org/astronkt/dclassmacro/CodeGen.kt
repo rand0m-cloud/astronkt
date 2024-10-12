@@ -159,8 +159,9 @@ fun StringBuilder.generateFields(
                 append(type.destructure(index, "getField(${fieldId.id}U.toFieldId())!!", "\t\t"))
                 append("\n")
                 append("\t\tset(value) { ")
+                append("setField(${fieldId.id}U.toFieldId(), ")
                 append(type.restructure(index, "value", "\t\t"))
-                append("}\n")
+                append(") }\n")
             }
 
             is DClassFile.DClassField.AtomicField -> {

@@ -13,16 +13,17 @@ data class AstronInternalRepositoryConfig(
     val serverAddress: String,
     val repoControlId: ChannelId,
     val stateServerControl: ChannelId,
+    val repositoryCoroutineScope: CoroutineScope = MainScope()
 )
 
 class AstronInternalRepository(
-    internal val objectsCoroutineScope: CoroutineScope,
+    internal val repositoryCoroutineScope: CoroutineScope,
     private val classSpecRepository: ClassSpecRepository,
     val astronInternalNetwork: AstronInternalNetwork,
     val config: AstronInternalRepositoryConfig,
 ) {
-    private val objects: MutableMap<DOId, MutableList<DistributedObjectBase>> = mutableMapOf()
-    val classRepository = ClassRepository()
+    val objects: MutableMap<DOId, MutableList<DistributedObjectBase>> = mutableMapOf()
+    val classRepository = ClassRepository(isServer = true)
 
     fun sendFieldUpdate(doId: DOId, fieldId: FieldId, value: FieldValue) {
         astronInternalNetwork.sendMessage(
@@ -61,11 +62,20 @@ class AstronInternalRepository(
             addDO(id, doInstance)
         }
 
-        (MainScope() + CoroutineName("AstronRepositoryNetwork")).launch {
+        (repositoryCoroutineScope + CoroutineName("AstronRepositoryNetwork")).launch {
             astronInternalNetwork.networkMessages.collect {
                 recieveMessage(it)
             }
         }
+    }
+
+    suspend fun awaitRepositoryClose(): Unit = repositoryCoroutineScope.coroutineContext.job.join()
+
+    fun closeRepository() {
+        objects.values.flatten().forEach {
+            it.onDelete()
+        }
+        repositoryCoroutineScope.coroutineContext.job.cancel()
     }
 
     private fun recieveMessage(message: AstronInternalMessage) {
@@ -93,16 +103,20 @@ class AstronInternalRepository(
         ) { "dclass $dclassId expected ${requiredFieldId.size} but got ${required?.size} required fields" }
 
         val newDOs = classRepository.classesForDClass(dclassId).map {
-            (it.primaryConstructor!!.call(doId) as DistributedObjectBase).apply {
-                if (required != null) {
-                    requiredFieldId.zip(required).forEach { (id, value) ->
-                        setField(id, value)
-                    }
-                }
-            }
+            (it.primaryConstructor!!.call(doId) as DistributedObjectBase)
         }
 
         addDO(doId, *newDOs.toTypedArray())
+
+        newDOs.forEach {
+            if (required != null) {
+                requiredFieldId.zip(required).forEach { (id, value) ->
+                    it.setField(id, value)
+                }
+            }
+            // TODO: handle other
+            it.afterInit()
+        }
 
         astronInternalNetwork.sendMessage(
             AstronInternalMessage(

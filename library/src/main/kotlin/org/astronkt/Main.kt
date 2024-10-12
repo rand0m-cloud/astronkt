@@ -1,7 +1,6 @@
 package org.astronkt
 
 import kotlinx.coroutines.CoroutineName
-import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.plus
 import org.astronkt.client.AstronClientNetwork
 import org.astronkt.client.AstronClientRepository
@@ -14,8 +13,10 @@ import org.astronkt.internal.AstronInternalRepositoryConfig
 var isClient: Boolean = false
     private set
 
-val isServer: Boolean
-    get() = !isClient
+var isServer: Boolean = false
+    private set
+
+val isClientAndServer: Boolean get() = isClient && isServer
 
 lateinit var internalRepository: AstronInternalRepository
     private set
@@ -27,12 +28,12 @@ fun setupAstronInternalRepository(
     classSpecRepository: ClassSpecRepository,
     config: AstronInternalRepositoryConfig,
 ) {
-    isClient = false
+    isServer = true
     internalRepository = AstronInternalRepository(
-        MainScope() + CoroutineName("ObjectsCoroutineScope"),
+        config.repositoryCoroutineScope + CoroutineName("ObjectsCoroutineScope"),
         classSpecRepository,
         AstronInternalNetwork(
-            MainScope() + CoroutineName("AstronInternalNetwork")
+            config.repositoryCoroutineScope + CoroutineName("AstronInternalNetwork")
         ),
         config,
     )
@@ -45,10 +46,9 @@ fun setupAstronClientRepository(
 ) {
     isClient = true
     clientRepository = AstronClientRepository(
-        MainScope() + CoroutineName("ObjectsCoroutineScope"),
+        config.repositoryCoroutineScope + CoroutineName("ObjectsCoroutineScope"),
         classSpecRepository,
-        AstronClientNetwork(MainScope() + CoroutineName("AstronClientNetwork")),
+        AstronClientNetwork(config.repositoryCoroutineScope + CoroutineName("AstronClientNetwork")),
         config,
     )
 }
-

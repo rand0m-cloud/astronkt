@@ -45,7 +45,7 @@ class DClassPlugin : Plugin<Project> {
             }
         }
 
-        project.tasks.named("build") {
+        project.tasks.named("compileKotlin") {
             it.dependsOn("generateDClassBindings")
         }
 
@@ -53,7 +53,7 @@ class DClassPlugin : Plugin<Project> {
             val kotlinExtension =
                 project.extensions.findByType(org.jetbrains.kotlin.gradle.dsl.KotlinJvmProjectExtension::class.java)
             kotlinExtension?.sourceSets?.getByName("main")?.kotlin?.srcDir(outputDir)
-                ?: error("could not add generate source to main kotlin source set")
+                ?: error("could not add generated source to main kotlin source set")
         }
     }
 }

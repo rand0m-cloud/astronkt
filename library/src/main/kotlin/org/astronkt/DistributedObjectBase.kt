@@ -9,7 +9,7 @@ import kotlinx.coroutines.plus
 abstract class DistributedObjectBase(val doId: DOId, val dclassId: DClassId) {
     abstract val objectFields: Map<FieldId, DistributedField>
     val coroutineScope: CoroutineScope =
-        (if (isClient) clientRepository.objectsCoroutineScope else internalRepository.objectsCoroutineScope) +
+        (if (isClient) clientRepository.repositoryCoroutineScope else internalRepository.repositoryCoroutineScope) +
                 CoroutineName(
                     "DO-$doId",
                 )
@@ -48,7 +48,20 @@ abstract class DistributedObjectBase(val doId: DOId, val dclassId: DClassId) {
 
         if (fromNetwork) return
 
-        if (isClient) {
+        if (isClientAndServer) {
+            val doesClient = clientRepository.objects.values.flatten().find { it === this } != null
+            val doesServer = internalRepository.objects.values.flatten().find { it === this } != null
+
+            if (!doesClient.xor(doesServer)) {
+                error("searching for repository to send update and client is $doesClient and server is $doesServer")
+            }
+
+            if (doesClient) {
+                clientRepository.sendFieldUpdate(doId, fieldId, fieldValue)
+            } else {
+                internalRepository.sendFieldUpdate(doId, fieldId, fieldValue)
+            }
+        } else if (isClient) {
             clientRepository.sendFieldUpdate(doId, fieldId, fieldValue)
         } else {
             internalRepository.sendFieldUpdate(doId, fieldId, fieldValue)

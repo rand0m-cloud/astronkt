@@ -16,23 +16,24 @@ data class AstronClientRepositoryConfig(
     val serverAddress: String,
     val version: String,
     val dcHash: UInt,
+    val repositoryCoroutineScope: CoroutineScope = MainScope()
 )
 
 class AstronClientRepository(
-    internal val objectsCoroutineScope: CoroutineScope,
+    val repositoryCoroutineScope: CoroutineScope,
     private val classSpecRepository: ClassSpecRepository,
     val astronClientNetwork: AstronClientNetwork,
     val config: AstronClientRepositoryConfig,
 ) {
-    private val objects: MutableMap<DOId, MutableList<DistributedObjectBase>> = mutableMapOf()
+    val objects: MutableMap<DOId, MutableList<DistributedObjectBase>> = mutableMapOf()
     private val objectsDClass: MutableMap<DOId, DClassId> = mutableMapOf()
-    val classRepository = ClassRepository()
+    val classRepository = ClassRepository(isServer = false)
 
     private val activeInterests = mutableSetOf<InterestId>()
 
     data class FieldUpdate(val doId: DOId, val fieldId: FieldId, val value: FieldValue)
 
-    private val _fieldUpdates: MutableSharedFlow<FieldUpdate> = MutableSharedFlow()
+    private val _fieldUpdates: MutableSharedFlow<FieldUpdate> = MutableSharedFlow(8)
     val fieldUpdates: SharedFlow<FieldUpdate> = _fieldUpdates
 
     fun launch() {
@@ -50,7 +51,7 @@ class AstronClientRepository(
         }
 
         // client heartbeat coroutine
-        objectsCoroutineScope.launch {
+        repositoryCoroutineScope.launch {
             while (isActive) {
                 delay(1000L)
                 runCatching {
@@ -59,11 +60,21 @@ class AstronClientRepository(
             }
         }
 
-        (MainScope() + CoroutineName("AstronRepositoryNetwork")).launch {
+        (repositoryCoroutineScope + CoroutineName("AstronRepositoryNetwork")).launch {
             astronClientNetwork.networkMessages.collect {
                 recieveMessage(it)
             }
         }
+
+    }
+
+    suspend fun awaitRepositoryClose(): Unit = repositoryCoroutineScope.coroutineContext.job.join()
+
+    fun closeRepository() {
+        objects.values.flatten().forEach {
+            it.onDelete()
+        }
+        repositoryCoroutineScope.coroutineContext.job.cancel()
     }
 
     private suspend fun recieveMessage(message: AstronClientMessage) {
@@ -75,7 +86,7 @@ class AstronClientRepository(
                 val fieldId = FieldValue.Type.UInt16.read(buf).toFieldId()
                 val fieldSpec =
                     classSpecRepository.byFieldId[fieldId]
-                        ?: throw IllegalStateException("don't have a field id spec for $fieldId")
+                        ?: error("don't have a field id spec for $fieldId")
                 val value = fieldSpec.type.readValue(buf)
 
                 receiveFieldUpdate(doId, fieldId, value)
@@ -216,6 +227,10 @@ class AstronClientRepository(
                 listOf(doId.toFieldValue(), fieldId.toFieldValue(), value).toBytes(),
             ),
         )
+
+        repositoryCoroutineScope.launch {
+            _fieldUpdates.emit(FieldUpdate(doId, fieldId, value))
+        }
     }
 
     suspend fun receiveFieldUpdate(
