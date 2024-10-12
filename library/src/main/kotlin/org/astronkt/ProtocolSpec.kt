@@ -1,3 +1,5 @@
+@file:Suppress("MemberVisibilityCanBePrivate")
+
 package org.astronkt
 
 data class ProtocolMessageSpec(
@@ -18,6 +20,7 @@ sealed class ProtocolMessageArgumentSpec(open val name: String, open val type: F
     data object Dynamic : ProtocolMessageArgumentSpec("dynamic", FieldValue.Type.Blob)
 }
 
+@Suppress("unused")
 object ProtocolMessageRepository {
     val protocolMessages: List<ProtocolMessageSpec> = _protocolMessages
     val byMsgType: Map<UShort, ProtocolMessageSpec> = protocolMessages.associateBy { it.msgType }

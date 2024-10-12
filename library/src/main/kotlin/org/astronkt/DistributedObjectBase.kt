@@ -1,3 +1,5 @@
+@file:Suppress("unused", "MemberVisibilityCanBePrivate")
+
 package org.astronkt
 
 import kotlinx.coroutines.CoroutineName
@@ -65,7 +67,7 @@ typealias DOId = DistributedObjectId
 
 fun Int.toDOId() = DOId(this.toUInt())
 
-fun UInt.toDOId() = DOId(this.toUInt())
+fun UInt.toDOId() = DOId(this)
 
 fun DOId.toChannelId() = id.toULong().toChannelId()
 

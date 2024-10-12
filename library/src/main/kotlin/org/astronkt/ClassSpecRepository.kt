@@ -1,3 +1,5 @@
+@file:Suppress("unused", "MemberVisibilityCanBePrivate")
+
 package org.astronkt
 
 data class DistributedFieldModifiers(
@@ -67,7 +69,6 @@ class ClassSpecRepository(val classes: List<DistributedSpec>) {
             var fieldId = 0U.toUShort()
 
             for (clazz in classes) {
-                val name = clazz.name
                 val fields =
                     clazz.fields.map {
                         fieldId.toFieldId().also {

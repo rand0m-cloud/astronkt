@@ -19,6 +19,7 @@ tasks.named<JavaExec>("run") {
 }
 
 tasks.jar {
+    dependsOn(project(":library").tasks.jar)
     manifest {
         attributes["Main-Class"] = application.mainClass
     }

@@ -38,6 +38,7 @@ fun setupAstronInternalRepository(
     )
 }
 
+@Suppress("unused")
 fun setupAstronClientRepository(
     classSpecRepository: ClassSpecRepository,
     config: AstronClientRepositoryConfig,

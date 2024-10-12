@@ -1,3 +1,5 @@
+@file:Suppress("unused")
+
 package org.astronkt.plugin
 
 import org.gradle.api.Plugin

@@ -1,8 +1,8 @@
 package org.astronkt.client
 
-import Utils.org.astronkt.getRemaining
 import org.astronkt.ProtocolMessageArgumentSpec
 import org.astronkt.ProtocolMessageRepository
+import org.astronkt.getRemaining
 import org.astronkt.toFieldValue
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer

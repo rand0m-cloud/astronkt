@@ -1,3 +1,5 @@
+@file:Suppress("unused", "MemberVisibilityCanBePrivate")
+
 package org.astronkt
 
 import java.io.ByteArrayOutputStream
@@ -293,6 +295,7 @@ sealed class FieldValue {
                 }
 
                 is Type.Array -> {
+                    @Suppress("UNUSED_VARIABLE")
                     val len = bytes.getShort()
                     ArrayValue(type.type, type.read(bytes))
                 }
@@ -488,8 +491,6 @@ fun String.toFieldValue(): FieldValue = FieldValue.StringValue(this)
 fun ByteArray.toFieldValue(): FieldValue = FieldValue.BlobValue(this)
 
 fun FieldValue.toFieldValue(): FieldValue = this
-
-fun List<FieldValue>.toFieldValue(): FieldValue = error("todo")
 
 fun List<FieldValue>.toBytes(): ByteArray =
     fold(ByteArrayOutputStream()) { out, value ->

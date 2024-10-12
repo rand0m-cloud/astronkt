@@ -1,3 +1,5 @@
+@file:Suppress("unused", "MemberVisibilityCanBePrivate")
+
 package org.astronkt.client
 
 import kotlinx.coroutines.*
@@ -33,7 +35,7 @@ class AstronClientRepository(
     private val _fieldUpdates: MutableSharedFlow<FieldUpdate> = MutableSharedFlow()
     val fieldUpdates: SharedFlow<FieldUpdate> = _fieldUpdates
 
-    suspend fun launch() {
+    fun launch() {
         astronClientNetwork.connect(config.serverAddress)
         astronClientNetwork.sendMessage(
             AstronClientMessage(

@@ -1,4 +1,4 @@
-package Utils.org.astronkt
+package org.astronkt
 
 import java.nio.ByteBuffer
 

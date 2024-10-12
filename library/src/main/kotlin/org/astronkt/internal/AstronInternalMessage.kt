@@ -1,6 +1,8 @@
+@file:OptIn(ExperimentalUnsignedTypes::class)
+@file:Suppress("MemberVisibilityCanBePrivate")
+
 package org.astronkt.internal
 
-import Utils.org.astronkt.getRemaining
 import org.astronkt.*
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer

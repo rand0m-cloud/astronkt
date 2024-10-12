@@ -1,3 +1,5 @@
+@file:Suppress("unused")
+
 package org.astronkt.dclassmacro
 
 import com.github.h0tk3y.betterParse.grammar.parseToEnd
@@ -10,7 +12,6 @@ fun main(args: Array<String>) {
         val filename = args[it]
         File(filename)
     }
-    val inputFile = File(args.firstOrNull() ?: "../game.dc")
     val outputDir = File(args.last()).apply {
         if (!exists()) {
             mkdirs()

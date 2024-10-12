@@ -1,7 +1,6 @@
 package org.astronkt.dclassmacro
 
 import org.astronkt.FieldValue
-import org.astronkt.ProtocolMessageArgumentSpec.Dynamic.type
 
 fun FieldValue.Type.toTypeCode(): String =
     when (this) {
@@ -39,6 +38,7 @@ fun FieldValue.Type.toTypeCode(): String =
 
             "FieldValue.Type.Array(${type.toTypeCode()}$isSized)"
         }
+
         FieldValue.Type.Empty -> "FieldValue.Type.Empty"
     }
 
@@ -81,7 +81,7 @@ fun DClassFile.DClassFieldType.toUserKotlinType(): String =
     }
 
 fun DClassFile.DClassFieldType.toDestructureCodePrimitive(index: DClassFileIndex): String? =
-    when (val raw = toRawFieldValueType(index)) {
+    when (toRawFieldValueType(index)) {
         is FieldValue.Type.UInt8 -> "toUInt8()!!"
         is FieldValue.Type.UInt16 -> "toUInt16()!!"
         is FieldValue.Type.UInt32 -> "toUInt32()!!"

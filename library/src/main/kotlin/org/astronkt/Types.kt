@@ -1,3 +1,5 @@
+@file:Suppress("unused")
+
 package org.astronkt
 
 data class ZoneId(val id: UInt)

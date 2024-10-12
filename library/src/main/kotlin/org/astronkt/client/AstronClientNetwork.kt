@@ -1,3 +1,5 @@
+@file:Suppress("MemberVisibilityCanBePrivate")
+
 package org.astronkt.client
 
 import kotlinx.coroutines.CoroutineScope

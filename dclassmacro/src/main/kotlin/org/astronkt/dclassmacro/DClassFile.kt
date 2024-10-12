@@ -1,10 +1,9 @@
-@file:Suppress("ktlint:standard:no-wildcard-imports")
+@file:Suppress("ktlint:standard:no-wildcard-imports", "unused")
 
 package org.astronkt.dclassmacro
 
 import org.astronkt.*
 
-@Suppress("unused")
 data class DClassFile(val decls: List<TypeDecl>) {
     sealed class TypeDecl {
         data class DClass(val name: String, val parents: List<String>, val fields: List<DClassField>) : TypeDecl()
@@ -269,7 +268,6 @@ sealed interface DClassFileIndex {
 
     fun getDClassFields(dClassName: String): List<Pair<FieldId, DClassFile.DClassField>> {
         val dClass = getDClass(dClassName)
-        val dClassId = getDClassId(dClassName)
         val fields =
             dClass.parents.asSequence().flatMap { getDClassFields(it) }
                 .plus(
@@ -345,7 +343,7 @@ fun DClassFile.buildIndex(): DClassFileIndex {
                 index.dClasses.add(decl.name)
                 index.byDClassName[decl.name] = index.dClassId.toDClassId() to decl
 
-                for ((localIndex, field) in decl.fields.withIndex()) {
+                for ((localIndex, _) in decl.fields.withIndex()) {
                     index.byDClassField[decl.name to localIndex.toUShort()] = index.fieldId.toFieldId()
                     index.incFieldId()
                 }
@@ -479,55 +477,3 @@ fun DClassFile.DClassField.toDistributedFieldSpec(
     )
 }
 
-fun DClassFile.DClassRawFieldType.toType(): String =
-    when (this) {
-        is DClassFile.DClassRawFieldType.UInt8 -> "uint8"
-        is DClassFile.DClassRawFieldType.Int8 -> "int8"
-        is DClassFile.DClassRawFieldType.UInt16 -> "uint16"
-        is DClassFile.DClassRawFieldType.Int16 -> "int16"
-        is DClassFile.DClassRawFieldType.UInt32 -> "uint32"
-        is DClassFile.DClassRawFieldType.Int32 -> "int32"
-        is DClassFile.DClassRawFieldType.UInt64 -> "uint64"
-        is DClassFile.DClassRawFieldType.Int64 -> "int64"
-        is DClassFile.DClassRawFieldType.Blob -> "blob"
-        is DClassFile.DClassRawFieldType.String -> "string"
-        is DClassFile.DClassRawFieldType.Char -> "char"
-        is DClassFile.DClassRawFieldType.Float64 -> "float64"
-        is DClassFile.DClassRawFieldType.UserType -> name
-    }
-
-fun DClassFile.DClassParameter.ArrayParameter.ArrayRange.toType(): String =
-    when (this) {
-        is DClassFile.DClassParameter.ArrayParameter.ArrayRange.Empty -> "[]"
-        is DClassFile.DClassParameter.ArrayParameter.ArrayRange.Size -> "[$size]"
-        is DClassFile.DClassParameter.ArrayParameter.ArrayRange.Range -> "[$from - $to]"
-    }
-
-fun DClassFile.DClassParameter.IntParameter.IntTransform.toType(): String {
-    return "${operator}${literal}${next?.toType() ?: ""}"
-}
-
-fun DClassFile.DClassParameter.FloatParameter.FloatTransform.toType(): String {
-    return "${operator}${literal}${next?.toType() ?: ""}"
-}
-
-fun DClassFile.DClassFieldType.Sized.SizeConstraint.toType(): String =
-    if (maxSize != null) "($minSize - $maxSize)" else "($minSize)"
-
-fun String.toDClassFieldType(): DClassFile.DClassRawFieldType {
-    return when (this) {
-        "uint8" -> DClassFile.DClassRawFieldType.UInt8
-        "int8" -> DClassFile.DClassRawFieldType.Int8
-        "uint16" -> DClassFile.DClassRawFieldType.UInt16
-        "int16" -> DClassFile.DClassRawFieldType.Int16
-        "uint32" -> DClassFile.DClassRawFieldType.UInt32
-        "int32" -> DClassFile.DClassRawFieldType.Int32
-        "uint64" -> DClassFile.DClassRawFieldType.UInt64
-        "int64" -> DClassFile.DClassRawFieldType.Int64
-        "float64" -> DClassFile.DClassRawFieldType.Float64
-        "char" -> DClassFile.DClassRawFieldType.Char
-        "string" -> DClassFile.DClassRawFieldType.String
-        "blob" -> DClassFile.DClassRawFieldType.Blob
-        else -> DClassFile.DClassRawFieldType.UserType(this)
-    }
-}

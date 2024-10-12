@@ -1,3 +1,5 @@
+@file:Suppress("unused")
+
 package org.astronkt.dclassmacro
 
 import org.astronkt.DistributedFieldModifiers
@@ -54,9 +56,9 @@ fun generateDClassHelper(
                         val id = dClassId.id
                         append("open class $dClassName(doId: DOId): DistributedObjectBase(doId, ${id}U.toDClassId()) {\n")
 
-                        generatePreamble(index, dClassName, id, dClass)
+                        generatePreamble(index, dClassName, id)
                         generateFieldSpecs(index, dClass)
-                        generateFields(index, dClassName, dClass)
+                        generateFields(index, dClassName)
                         generateEventSetters(index, dClass)
 
                         append("}\n\n")
@@ -72,14 +74,13 @@ fun StringBuilder.generatePreamble(
     index: DClassFileIndex,
     dClassName: String,
     id: UShort,
-    dClass: DClassFile.TypeDecl.DClass,
 ) {
     append("\tcompanion object {\n")
     append("\t\tval dClassId = ${id}U.toDClassId()\n\n")
     append("\t\tobject Fields {\n")
     for ((fieldId, field) in index.getDClassFields(dClassName)) {
         val name = field.name ?: "field${fieldId.id}"
-        append("\t\t\tval ${field.name}: FieldId = ${fieldId.id}U.toFieldId()\n")
+        append("\t\t\tval $name: FieldId = ${fieldId.id}U.toFieldId()\n")
     }
     append("\t\t}\n")
     append("\t}\n")
@@ -90,11 +91,11 @@ fun StringBuilder.generateFieldSpecs(
     dClass: DClassFile.TypeDecl.DClass,
 ) {
     append("\toverride val objectFields: Map<FieldId, DistributedField> = mapOf(\n")
-    for ((localIndex, tuple) in index.getDClassFields(dClass.name).withIndex()) {
+    for (tuple in index.getDClassFields(dClass.name)) {
         val (fieldId, field) = tuple
         val fieldName = field.name ?: "field${fieldId.id}"
         val spec = field.toDistributedFieldSpec(index, fieldId, dClass.name)
-        val isField = field is DClassFile.DClassField.ParameterField
+        field is DClassFile.DClassField.ParameterField
         append("\t\t${fieldId.id}U.toFieldId() to DistributedField(\n")
         append("\t\t\tDistributedFieldSpec(\n")
         append("\t\t\t\t${spec.type.toTypeCode()},\n")
@@ -145,15 +146,14 @@ fun StringBuilder.generateFieldSpecs(
 fun StringBuilder.generateFields(
     index: DClassFileIndex,
     dClassName: String,
-    dClass: DClassFile.TypeDecl.DClass,
 ) {
     for ((fieldId, field) in index.getDClassFields(dClassName)) {
         when (field) {
             is DClassFile.DClassField.ParameterField -> {
                 val type = field.parameter.type
-                val rawType = type.toRawFieldValueType(index)
+                type.toRawFieldValueType(index)
                 val userType = type.toUserKotlinType()
-                val userDefined = type.userDefinedType()
+                type.userDefinedType()
                 append("\tvar ${field.name}: $userType\n\t\tget() = ")
 
                 append(type.destructure(index, "getField(${fieldId.id}U.toFieldId())!!", "\t\t"))
@@ -181,7 +181,7 @@ fun StringBuilder.generateFields(
                         )
                     }
                 append("\tfun ${field.name}(")
-                for ((name, type, rawType, userType) in types) {
+                for ((name, _, _, userType) in types) {
                     append("$name: $userType, ")
                 }
                 append(") {\n")
@@ -197,7 +197,7 @@ fun StringBuilder.generateFields(
 
                     else -> {
                         append("FieldValue.TupleValue(\n\t\t\t")
-                        for ((name, type, rawType, userType) in types) {
+                        for ((name, type, _, _) in types) {
                             append(type.restructure(index, name, "\t\t"))
                             append(", \n\t\t\t")
                         }
@@ -289,14 +289,13 @@ private fun StringBuilder.generateClassSpec(
     for (decl in file.decls) {
         when (decl) {
             is DClassFile.TypeDecl.DClass -> {
-                val dClass = decl
 
-                append("\tdclass(\"${dClass.name}\", listOf(${decl.parents.map { "\"$it\"" }.joinToString(",")})) {\n")
-                for ((localIndex, field) in dClass.fields.withIndex()) {
-                    val fieldId = index.getFieldId(dClass.name, localIndex.toUShort())
+                append("\tdclass(\"${decl.name}\", listOf(${decl.parents.joinToString(",") { "\"$it\"" }})) {\n")
+                for ((localIndex, field) in decl.fields.withIndex()) {
+                    val fieldId = index.getFieldId(decl.name, localIndex.toUShort())
                     val fieldName = field.name ?: "field${fieldId.id}"
-                    append("\t\tfield(\"$fieldName\", ${field.toRawFieldValueType(index, dClass.name).toTypeCode()})")
-                    val spec = field.toDistributedFieldSpec(index, fieldId, dClass.name)
+                    append("\t\tfield(\"$fieldName\", ${field.toRawFieldValueType(index, decl.name).toTypeCode()})")
+                    val spec = field.toDistributedFieldSpec(index, fieldId, decl.name)
 
                     if (spec.modifiers == DistributedFieldModifiers()) {
                         append("\n")
@@ -323,10 +322,9 @@ private fun StringBuilder.generateClassSpec(
             }
 
             is DClassFile.TypeDecl.Struct -> {
-                val struct = decl
-                append("\tstruct(\"${struct.name}\") {\n")
+                append("\tstruct(\"${decl.name}\") {\n")
 
-                for ((localIndex, field) in struct.parameters.withIndex()) {
+                for ((localIndex, field) in decl.parameters.withIndex()) {
                     val fieldName = field.name ?: "field$localIndex"
                     append("\t\tfield(\"$fieldName\",${field.type.toRawFieldValueType(index).toTypeCode()})\n")
                 }
@@ -412,8 +410,6 @@ fun StringBuilder.generateTypeDef(
     val name = typeDef.newTypeName
     val type = typeDef.type
     val rawType = type.toRawFieldValueType(index)
-    val userDefined = type.userDefinedType()
-    val arrayType = type.arrayType()
 
     append("data class $name(val inner: ${type.toUserKotlinType()}) {\n")
     append("\tcompanion object: ToFieldValue<$name> {\n")
@@ -444,9 +440,9 @@ fun StringBuilder.generateStruct(
     val structType = FieldValue.Type.Tuple(*struct.parameters.map { it.type.toRawFieldValueType(index) }.toTypedArray())
     append("data class $name(")
     for (param in struct.parameters) {
-        val name = param.name
+        val paramName = param.name
         val type = param.type.toUserKotlinType()
-        append("val $name: $type, ")
+        append("val $paramName: $type, ")
     }
     append(") {\n")
     append("\tcompanion object: ToFieldValue<$name> {\n")
@@ -456,9 +452,6 @@ fun StringBuilder.generateStruct(
 
     for ((localIndex, parameter) in struct.parameters.withIndex()) {
         val paramName = parameter.name ?: "arg$localIndex"
-        val destructure = parameter.type.toDestructureCodePrimitive(index)
-        val userDefined = parameter.type.userDefinedType()
-        val arrayType = parameter.type.arrayType()
 
         append("\t\t\tval $paramName = ")
 
@@ -555,19 +548,19 @@ fun DClassFile.DClassFieldType.restructure(
         if (arrayType != null) {
             append("FieldValue.ArrayValue(${arrayType.toRawFieldValueType(index).toTypeCode()}, $expr")
 
-            var subArrayType: DClassFile.DClassFieldType = arrayType as DClassFile.DClassFieldType
+            var subArrayType: DClassFile.DClassFieldType = arrayType
             var neededBraces = 0
             while (true) {
                 append(".map { it")
                 neededBraces += 1
 
-                val next = subArrayType!!.arrayType() ?: break
+                val next = subArrayType.arrayType() ?: break
 
                 subArrayType = next
             }
 
             if (needsTransform()) {
-                append(".unTransform(${subArrayType!!.toRawFieldValueType(index).toTypeCode()}) {\n")
+                append(".unTransform(${subArrayType.toRawFieldValueType(index).toTypeCode()}) {\n")
                 append(generateTransformBody("$prependIndent\t"))
                 append("\n$prependIndent}")
             }

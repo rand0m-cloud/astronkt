@@ -1,3 +1,5 @@
+@file:Suppress("unused")
+
 package org.astronkt
 
 interface TransformScope {

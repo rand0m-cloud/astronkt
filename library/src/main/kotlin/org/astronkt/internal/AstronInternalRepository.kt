@@ -1,3 +1,5 @@
+@file:Suppress("unused", "MemberVisibilityCanBePrivate")
+
 package org.astronkt.internal
 
 import kotlinx.coroutines.*
@@ -40,7 +42,7 @@ class AstronInternalRepository(
         }
     }
 
-    suspend fun launch() {
+    fun launch() {
         astronInternalNetwork.connect(config.serverAddress)
         astronInternalNetwork.sendMessage(
             AstronInternalMessage.controlMessage(
