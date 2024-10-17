@@ -36,7 +36,7 @@ sealed class FieldValue {
 
     data class BlobValue(val value: ByteArray) : FieldValue()
 
-    data class ArrayValue(val type: Type, val values: List<FieldValue>) : FieldValue()
+    data class ArrayValue(val values: List<FieldValue>) : FieldValue()
 
     data object EmptyValue : FieldValue()
 
@@ -146,7 +146,7 @@ sealed class FieldValue {
                 return list
             }
 
-            override fun readValue(buf: ByteBuffer): FieldValue = ArrayValue(type, read(buf))
+            override fun readValue(buf: ByteBuffer): FieldValue = ArrayValue(read(buf))
         }
 
         data object Char : Type() {
@@ -233,34 +233,6 @@ sealed class FieldValue {
         }.toByteArray()
     }
 
-    fun type(): Type =
-        when (this) {
-            is UInt64Value -> Type.UInt64
-            is Int64Value -> Type.Int64
-
-            is UInt32Value -> Type.UInt32
-            is Int32Value -> Type.Int32
-
-            is UInt16Value -> Type.UInt16
-            is Int16Value -> Type.Int16
-
-            is UInt8Value -> Type.UInt8
-            is Int8Value -> Type.Int8
-
-            is StringValue -> Type.String
-            is BlobValue -> Type.Blob
-            is ArrayValue -> Type.Array(type)
-            is CharValue -> Type.Char
-            is Float64Value -> Type.Float64
-            is TupleValue ->
-                Type.Tuple(
-                    *value.map {
-                        type()
-                    }.toTypedArray(),
-                )
-
-            EmptyValue -> Type.Empty
-        }
 
     companion object {
         internal fun fromBytes(
@@ -297,7 +269,7 @@ sealed class FieldValue {
                 is Type.Array -> {
                     @Suppress("UNUSED_VARIABLE")
                     val len = bytes.getShort()
-                    ArrayValue(type.type, type.read(bytes))
+                    ArrayValue(type.read(bytes))
                 }
 
                 is Type.Tuple -> {
@@ -490,6 +462,8 @@ fun String.toFieldValue(): FieldValue = FieldValue.StringValue(this)
 
 fun ByteArray.toFieldValue(): FieldValue = FieldValue.BlobValue(this)
 
+fun List<FieldValue>.toFieldValue(): FieldValue = FieldValue.ArrayValue(this)
+
 fun FieldValue.toFieldValue(): FieldValue = this
 
 fun List<FieldValue>.toBytes(): ByteArray =
@@ -506,7 +480,7 @@ interface ToFieldValue<T> {
 
     fun T.toFieldValue(): FieldValue
 
-    fun List<T>.toFieldValue(): FieldValue = FieldValue.ArrayValue(type, this.map { it.toFieldValue() })
+    fun List<T>.toFieldValue(): FieldValue = FieldValue.ArrayValue(this.map { it.toFieldValue() })
 
     fun fromFieldValue(value: List<FieldValue>): List<T> = value.map { fromFieldValue(it) }
 }
