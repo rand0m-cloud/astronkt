@@ -1,7 +1,7 @@
 plugins {
     alias(libs.plugins.kotlin.jvm)
     application
-    id("org.astronkt.plugin") version "0.1.1"
+    id("io.github.rand0m-cloud.astronkt.plugin") version "0.1.1"
 }
 
 group = "org.astronkt"
@@ -16,7 +16,7 @@ dClassPluginConfig {
 
 dependencies {
     // NOTE: This is using subproject coordinates
-    implementation("astronkt:library")
+    implementation("io.github.rand0m-cloud.astronkt:library")
     implementation(libs.kotlinx.coroutines)
     implementation(libs.kotlinx.coroutines.swing)
 }

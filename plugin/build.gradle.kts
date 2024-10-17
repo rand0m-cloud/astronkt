@@ -1,6 +1,7 @@
+import org.jetbrains.kotlin.gradle.plugin.extraProperties
+
 plugins {
     alias(libs.plugins.kotlin.jvm)
-    `maven-publish`
     `java-gradle-plugin`
 }
 
@@ -9,12 +10,11 @@ dependencies {
     implementation(project(":dclassmacro"))
 }
 
-group = "org.astronkt"
 
 gradlePlugin {
     plugins {
         create("dclassPlugin") {
-            id = "org.astronkt.plugin"
+            id = "${group as String}.plugin"
             implementationClass = "org.astronkt.plugin.DClassPlugin"
             version = rootProject.version
         }
@@ -22,7 +22,9 @@ gradlePlugin {
 }
 
 publishing {
-    repositories {
-        add(rootProject.publishing.repositories.named("GitHubPackages").get())
+    publications.withType<MavenPublication>().all {
+        @Suppress("UNCHECKED_CAST") val template =
+            rootProject.extraProperties["PomTemplate"] as MavenPublication.(String, String) -> Unit
+        template("astronkt-plugin", "A Gradle plugin for generating AstronKt bindings for DClass files")
     }
 }

@@ -1,26 +1,19 @@
+import org.jetbrains.kotlin.gradle.plugin.extraProperties
+
 plugins {
     alias(libs.plugins.kotlin.jvm)
     application
-    `maven-publish`
 }
 
 publishing {
     publications {
         create<MavenPublication>("dclassmacro") {
             from(components["java"])
-            groupId = "org.astronkt"
+            groupId = group as String
             artifactId = "dclassmacro"
             version = rootProject.version as String
         }
     }
-
-    repositories {
-        add(rootProject.publishing.repositories.named("GitHubPackages").get())
-    }
-}
-
-repositories {
-    mavenCentral()
 }
 
 application {
@@ -33,3 +26,12 @@ dependencies {
     implementation(libs.better.parse)
     implementation(project(":library"))
 }
+
+publishing {
+    publications.withType<MavenPublication>().all {
+        @Suppress("UNCHECKED_CAST") val template =
+            rootProject.extraProperties["PomTemplate"] as MavenPublication.(String, String) -> Unit
+        template("astronkt-dclassmacro", "An app for generating AstronKt bindings from DClass files")
+    }
+}
+

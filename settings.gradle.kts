@@ -10,6 +10,7 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
+
 rootProject.name = "astronkt"
 include("library")
 include("explorer")
