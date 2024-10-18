@@ -1,7 +1,7 @@
 plugins {
     alias(libs.plugins.kotlin.jvm)
     application
-    id("io.github.rand0m-cloud.astronkt.plugin") version "0.1.1"
+    id("io.github.rand0m-cloud.astronkt.plugin")
 }
 
 group = "org.astronkt"
