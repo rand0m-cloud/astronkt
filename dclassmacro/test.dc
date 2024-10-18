@@ -1,0 +1,5 @@
+dclass DistributedTestObject {
+  uint64 a broadcast ram required;
+  setA(uint8/10);
+  setB(uint8[][]) required;
+}

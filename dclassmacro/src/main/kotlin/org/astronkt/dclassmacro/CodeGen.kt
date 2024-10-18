@@ -45,7 +45,6 @@ fun generateDClassHelper(
                 append("package GameSpec\n\n")
 
                 append("import org.astronkt.*\n")
-                // append("import GameSpec.*\n\n")
 
                 when (decl) {
                     is DClassFile.TypeDecl.Struct -> generateStruct(index, decl)
@@ -547,7 +546,7 @@ fun DClassFile.DClassFieldType.restructure(
         }
 
         if (arrayType != null) {
-            append("FieldValue.ArrayValue(${arrayType.toRawFieldValueType(index).toTypeCode()}, $expr")
+            append("FieldValue.ArrayValue($expr")
 
             var subArrayType: DClassFile.DClassFieldType = arrayType
             var neededBraces = 0
