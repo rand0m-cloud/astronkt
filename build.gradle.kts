@@ -11,7 +11,7 @@ plugins {
 }
 
 group = "io.github.rand0m-cloud.astronkt"
-version = "0.1.1"
+version = "0.1.2"
 
 allprojects {
     apply(plugin = "maven-publish")

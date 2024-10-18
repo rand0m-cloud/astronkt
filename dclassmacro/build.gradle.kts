@@ -25,6 +25,9 @@ dependencies {
     implementation(libs.kotlinx.coroutines.swing)
     implementation(libs.better.parse)
     implementation(project(":library"))
+    testImplementation(libs.kotlin.compile.testing)
+    testImplementation(kotlin("test"))
+
 }
 
 publishing {
